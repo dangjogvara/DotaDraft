@@ -1,4 +1,6 @@
 using DotaDraft.Api.Data;
+using DotaDraft.Api.Endpoints;
+using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +10,12 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddHttpClient<OpenDotaService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.opendota.com/");
+    client.DefaultRequestHeaders.Add("User-Agent", "DotaDraftApp/1.0");
+});
 
 var app = builder.Build();
 
@@ -19,17 +27,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var heroesApi = app.MapGroup("api/heroes");
+// Endpoints
+app.RegisterHeroEndpoints();
 
-heroesApi.MapGet("/", GetHeroes);
-
-static async Task<IResult> GetHeroes(AppDbContext db)
+var adminApi = app.MapGroup("/api/admin");
+adminApi.MapPost("/seed-heroes", async (OpenDotaService seeder, CancellationToken ct) =>
 {
-    var heroes = await db.Heroes
-        .OrderBy(h => h.LocalizedName)
-        .ToListAsync();
-    return TypedResults.Ok(heroes);
-}
-
+    var count = await seeder.SeedHeroesAsync(ct);
+    return TypedResults.Ok(new { message = $"Seeded {count} heroes." });
+});
 
 app.Run();
