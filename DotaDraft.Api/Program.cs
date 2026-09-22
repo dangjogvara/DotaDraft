@@ -29,12 +29,6 @@ app.UseHttpsRedirection();
 
 // Endpoints
 app.RegisterHeroEndpoints();
-
-var adminApi = app.MapGroup("/api/admin");
-adminApi.MapPost("/seed-heroes", async (OpenDotaService seeder, CancellationToken ct) =>
-{
-    var count = await seeder.SeedHeroesAsync(ct);
-    return TypedResults.Ok(new { message = $"Seeded {count} heroes." });
-});
+app.RegisterAdminEndpoints();
 
 app.Run();
