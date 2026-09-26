@@ -2,6 +2,7 @@ using DotaDraft.Api.Data;
 using DotaDraft.Api.Endpoints;
 using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,9 +12,13 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddHttpClient<OpenDotaService>(client =>
+builder.Services.Configure<OpenDotaOptions>(
+    builder.Configuration.GetSection(OpenDotaOptions.SectionName));
+
+builder.Services.AddHttpClient<OpenDotaService>((sp, client) =>
 {
-    client.BaseAddress = new Uri("https://api.opendota.com/");
+    var options = sp.GetRequiredService<IOptions<OpenDotaOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
     client.DefaultRequestHeaders.Add("User-Agent", "DotaDraftApp/1.0");
 });
 

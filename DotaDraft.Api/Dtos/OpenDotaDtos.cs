@@ -12,3 +12,11 @@ public record OpenDotaHeroDto(
     string[] Roles,
     [property: JsonPropertyName("img")] string? Img
 );
+
+public record OpenDotaMatchupDto(
+    [property: JsonPropertyName("hero_id")]
+    int HeroId,
+    [property: JsonPropertyName("games_played")]
+    int GamesPlayed,
+    [property: JsonPropertyName("wins")] int Wins
+);
