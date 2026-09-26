@@ -20,3 +20,12 @@ public record OpenDotaMatchupDto(
     int GamesPlayed,
     [property: JsonPropertyName("wins")] int Wins
 );
+
+public record HeroCounterDto(
+    int Id,
+    string LocalizedName,
+    string PrimaryAttr,
+    string? ImgUrl,
+    decimal WinRate,
+    int GamesPlayed
+);
