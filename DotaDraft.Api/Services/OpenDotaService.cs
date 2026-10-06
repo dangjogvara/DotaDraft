@@ -65,6 +65,8 @@ public class OpenDotaService(
             catch (DbUpdateException ex)
             {
                 logger.LogError(ex, "Failed to save new heroes to the database.");
+                // Detach the failed entities so later saves on this context don't retry them
+                db.ChangeTracker.Clear();
                 return 0;
             }
         }
@@ -155,6 +157,8 @@ public class OpenDotaService(
                 catch (DbUpdateException ex)
                 {
                     logger.LogError(ex, "Failed to save matchups for hero ID {HeroId}", hero.Id);
+                    // Detach the failed entities so the next hero's save doesn't retry them
+                    db.ChangeTracker.Clear();
                 }
             }
 
