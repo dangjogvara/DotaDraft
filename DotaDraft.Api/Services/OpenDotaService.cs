@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Dtos;
 using DotaDraft.Api.Models;
@@ -14,7 +15,7 @@ public class OpenDotaService(
 {
     private readonly OpenDotaOptions _options = options.Value;
 
-    public async Task<int> SeedHeroesAsync(CancellationToken ct = default)
+    public async Task<SeedResult> SeedHeroesAsync(CancellationToken ct = default)
     {
         logger.LogInformation("Fetching heroes from OpenDota API...");
 
@@ -23,17 +24,17 @@ public class OpenDotaService(
         {
             heroDtos = await httpClient.GetFromJsonAsync<List<OpenDotaHeroDto>>("api/heroStats", ct);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsUpstreamFailure(ex, ct))
         {
             logger.LogError(ex, "Failed to retrieve heroes from OpenDota.");
-            return 0;
+            return SeedResult.Failed(SeedFailure.Upstream, "Failed to retrieve heroes from OpenDota.");
         }
 
         heroDtos ??= [];
         if (heroDtos.Count == 0)
         {
             logger.LogWarning("No heroes returned from OpenDota.");
-            return 0;
+            return SeedResult.Failed(SeedFailure.Upstream, "OpenDota returned no heroes.");
         }
 
         var existingIds = await db.Heroes
@@ -67,7 +68,7 @@ public class OpenDotaService(
                 logger.LogError(ex, "Failed to save new heroes to the database.");
                 // Detach the failed entities so later saves on this context don't retry them
                 db.ChangeTracker.Clear();
-                return 0;
+                return SeedResult.Failed(SeedFailure.Database, "Failed to save new heroes to the database.");
             }
         }
         else
@@ -75,21 +76,23 @@ public class OpenDotaService(
             logger.LogInformation("All heroes are already up to date.");
         }
 
-        return newHeroes.Count;
+        return SeedResult.Success(newHeroes.Count);
     }
 
-    public async Task<int> SeedMatchupsAsync(CancellationToken ct = default)
+    public async Task<SeedResult> SeedMatchupsAsync(CancellationToken ct = default)
     {
         // 1. Ensure the Heroes table is populated
         var heroes = await db.Heroes.OrderBy(h => h.Id).ToListAsync(ct);
         if (heroes.Count == 0)
         {
             logger.LogWarning("Cannot seed matchups: Heroes table is empty. Seed heroes first.");
-            return 0;
+            return SeedResult.Failed(SeedFailure.MissingPrerequisite, "Heroes table is empty. Seed heroes first.");
         }
 
         var validHeroIds = heroes.Select(h => h.Id).ToHashSet();
         int totalSaved = 0;
+        var upstreamFailures = new List<int>();
+        var databaseFailures = new List<int>();
 
         // 2. Preload all existing (HeroId, AgainstHeroId) pairs once, instead of one query per hero
         var existingMatchupKeys = (await db.HeroMatchups
@@ -115,9 +118,10 @@ public class OpenDotaService(
                 matchupDtos = await httpClient.GetFromJsonAsync<List<OpenDotaMatchupDto>>(
                     $"api/heroes/{hero.Id}/matchups", ct);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (IsUpstreamFailure(ex, ct))
             {
                 logger.LogError(ex, "Failed to retrieve matchups for hero ID {HeroId}", hero.Id);
+                upstreamFailures.Add(hero.Id);
                 continue;
             }
 
@@ -157,6 +161,7 @@ public class OpenDotaService(
                 catch (DbUpdateException ex)
                 {
                     logger.LogError(ex, "Failed to save matchups for hero ID {HeroId}", hero.Id);
+                    databaseFailures.Add(hero.Id);
                     // Detach the failed entities so the next hero's save doesn't retry them
                     db.ChangeTracker.Clear();
                 }
@@ -168,6 +173,20 @@ public class OpenDotaService(
         }
 
         logger.LogInformation("Matchup ingestion complete. Total rows inserted: {TotalSaved}", totalSaved);
-        return totalSaved;
+
+        if (upstreamFailures.Count == 0 && databaseFailures.Count == 0)
+            return SeedResult.Success(totalSaved);
+
+        // A database failure is reported over an upstream one, since it points at our side
+        var failure = databaseFailures.Count > 0 ? SeedFailure.Database : SeedFailure.Upstream;
+        var failedHeroIds = upstreamFailures.Concat(databaseFailures).Order().ToList();
+        return SeedResult.Failed(failure, $"Matchups failed for {failedHeroIds.Count} of {heroes.Count} heroes.", totalSaved)
+            with { FailedHeroIds = failedHeroIds };
     }
+
+    // HTTP errors, malformed JSON and HttpClient timeouts are OpenDota's fault.
+    // Cancellation by the caller is not, and must propagate.
+    private static bool IsUpstreamFailure(Exception ex, CancellationToken ct) =>
+        ex is HttpRequestException or JsonException
+        || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 }
