@@ -1,0 +1,26 @@
+<ol class="space-y-2">
+  @for (counter of counters(); track counter.id) {
+    <li class="flex items-center gap-3 rounded-md bg-slate-800 p-2" data-testid="counter">
+      @if (counter.imgUrl) {
+        <img [src]="counter.imgUrl" alt="" class="aspect-video w-20 shrink-0 rounded object-cover" />
+      } @else {
+        <div class="aspect-video w-20 shrink-0 rounded bg-slate-700"></div>
+      }
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-medium">{{ counter.localizedName }}</p>
+        <p class="text-xs text-slate-400">
+          {{ counter.winRate | number: '1.1-1' }}% win rate over {{ counter.gamesPlayed }} games
+          (usually {{ counter.baselineWinRate | number: '1.1-1' }}%)
+        </p>
+      </div>
+      <span
+        class="shrink-0 font-semibold tabular-nums"
+        [class.text-emerald-400]="counter.advantage > 0"
+        [class.text-slate-400]="counter.advantage <= 0"
+        title="Sample-adjusted advantage over this hero's usual win rate, in percentage points"
+      >
+        {{ counter.advantage > 0 ? '+' : '' }}{{ counter.advantage | number: '1.1-1' }}
+      </span>
+    </li>
+  }
+</ol>

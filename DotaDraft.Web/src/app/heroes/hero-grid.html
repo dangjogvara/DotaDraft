@@ -1,0 +1,23 @@
+<ul class="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
+  @for (hero of heroes(); track hero.id) {
+    <li>
+      <button
+        type="button"
+        class="group w-full overflow-hidden rounded-md bg-slate-800 ring-2 transition hover:ring-slate-400 focus-visible:ring-sky-400 focus-visible:outline-none"
+        [class.ring-sky-400]="hero.id === selectedHeroId()"
+        [class.ring-transparent]="hero.id !== selectedHeroId()"
+        [attr.aria-pressed]="hero.id === selectedHeroId()"
+        (click)="heroSelected.emit(hero)"
+      >
+        @if (hero.imgUrl) {
+          <img [src]="hero.imgUrl" alt="" class="aspect-video w-full object-cover" loading="lazy" />
+        } @else {
+          <div class="aspect-video w-full bg-slate-700"></div>
+        }
+        <span class="block truncate px-1 py-0.5 text-xs text-slate-300 group-hover:text-white">
+          {{ hero.localizedName }}
+        </span>
+      </button>
+    </li>
+  }
+</ul>

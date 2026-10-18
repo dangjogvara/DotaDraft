@@ -1,0 +1,57 @@
+@switch (heroes().status) {
+  @case ('loading') {
+    <p class="text-slate-400" data-testid="heroes-loading">Loading heroes…</p>
+  }
+  @case ('error') {
+    <div class="rounded-md border border-red-900 bg-red-950/50 p-4" data-testid="heroes-error">
+      <p class="text-red-300">Could not load heroes. Is DotaDraft.Api running?</p>
+      <button
+        type="button"
+        class="mt-2 rounded bg-red-900 px-3 py-1 text-sm hover:bg-red-800"
+        (click)="loadHeroes()"
+      >
+        Retry
+      </button>
+    </div>
+  }
+  @case ('loaded') {
+    @if (heroList().length === 0) {
+      <p class="text-slate-400" data-testid="heroes-empty">
+        No heroes yet. Seed them with <code>POST /api/admin/seed-heroes</code>.
+      </p>
+    } @else {
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <section class="min-w-0 flex-1" aria-label="Heroes">
+          <app-hero-grid
+            [heroes]="heroList()"
+            [selectedHeroId]="selectedHero()?.id ?? null"
+            (heroSelected)="selectHero($event)"
+          />
+        </section>
+
+        <aside class="lg:sticky lg:top-6 lg:w-96" aria-live="polite" data-testid="counters-panel">
+          @if (selectedHero(); as hero) {
+            <h2 class="mb-3 text-lg font-semibold">Counters to {{ hero.localizedName }}</h2>
+            @switch (counters()?.status) {
+              @case ('loading') {
+                <p class="text-slate-400">Loading counters…</p>
+              }
+              @case ('error') {
+                <p class="text-red-300">Could not load counters. Try selecting the hero again.</p>
+              }
+              @case ('loaded') {
+                @if (counterList().length === 0) {
+                  <p class="text-slate-400">No matchup data for this hero yet. Seed matchups first.</p>
+                } @else {
+                  <app-counter-list [counters]="counterList()" />
+                }
+              }
+            }
+          } @else {
+            <p class="text-slate-400">Pick a hero to see who counters it.</p>
+          }
+        </aside>
+      </div>
+    }
+  }
+}
