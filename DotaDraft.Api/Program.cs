@@ -23,6 +23,17 @@ builder.Services.AddOpenDotaClient();
 builder.Services.Configure<CounterOptions>(
     builder.Configuration.GetSection(CounterOptions.SectionName));
 
+// The Angular client runs on another origin (its dev server, or wherever it's deployed).
+// Origins come from configuration; with none configured, no cross-origin requests are allowed.
+const string AngularClientCorsPolicy = "AngularClient";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddPolicy(AngularClientCorsPolicy, policy => policy
+    .WithOrigins(allowedOrigins)
+    .WithMethods("GET", "POST")
+    .WithHeaders("Content-Type", AdminKeyFilter.HeaderName)
+    // Lets the client read where to poll after queueing matchup seeding (202 Accepted)
+    .WithExposedHeaders("Location")));
+
 builder.Services.AddScoped<HeroIngestionService>();
 builder.Services.AddSingleton<MatchupSeedJob>();
 builder.Services.AddHostedService<MatchupSeedWorker>();
@@ -36,6 +47,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors(AngularClientCorsPolicy);
 
 // Endpoints
 app.RegisterHeroEndpoints();
