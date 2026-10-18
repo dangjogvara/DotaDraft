@@ -60,12 +60,8 @@ public static class HeroEndpoints
             })
             .ToListAsync(ct);
 
-        // 4. Each hero's overall win rate across all its matchups, so general strength isn't mistaken for countering
-        var baselines = await db.HeroMatchups
-            .AsNoTracking()
-            .GroupBy(m => m.HeroId)
-            .Select(g => new { HeroId = g.Key, Wins = g.Sum(m => m.Wins), Games = g.Sum(m => m.GamesPlayed) })
-            .ToDictionaryAsync(b => b.HeroId, b => b.Games > 0 ? (double)b.Wins / b.Games : 0.5, ct);
+        // 4. Each hero's overall win rate, so general strength isn't mistaken for countering
+        var baselines = await db.LoadBaselineWinRatesAsync(ct);
 
         // 5. Rank by sample-adjusted advantage over the baseline
         var priorGames = options.Value.PriorGames;

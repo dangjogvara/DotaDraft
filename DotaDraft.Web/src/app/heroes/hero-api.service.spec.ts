@@ -49,4 +49,10 @@ describe('HeroApiService', () => {
 
     http.expectOne(`${baseUrl}/1/counters?limit=5`).flush([]);
   });
+
+  it('gets draft counters with one repeated "against" key per enemy', () => {
+    service.getDraftCounters([1, 14, 74]).subscribe();
+
+    http.expectOne(`${environment.apiBaseUrl}/api/counters?against=1&against=14&against=74&limit=10`).flush([]);
+  });
 });

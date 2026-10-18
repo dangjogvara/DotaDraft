@@ -52,6 +52,7 @@ app.UseCors(AngularClientCorsPolicy);
 
 // Endpoints
 app.RegisterHeroEndpoints();
+app.RegisterDraftEndpoints();
 app.RegisterAdminEndpoints();
 
 app.Run();

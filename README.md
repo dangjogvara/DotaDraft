@@ -94,6 +94,7 @@ curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/
 |---|---|---|---|
 | `GET` | `/api/heroes` | none | All heroes, sorted by name |
 | `GET` | `/api/heroes/{id}/counters?limit=5` | none | Top counter-picks against a hero (`limit` 1–20) |
+| `GET` | `/api/counters?against=1&against=14&limit=10` | none | Top counter-picks against an enemy lineup of 1–5 heroes (`limit` 1–20) |
 | `POST` | `/api/admin/seed-heroes` | `X-Admin-Key` | Fetch and upsert heroes from OpenDota |
 | `POST` | `/api/admin/seed-matchups` | `X-Admin-Key` | Queue a matchup seeding job; returns `202` with a `Location` header |
 | `GET` | `/api/admin/seed-matchups/status` | `X-Admin-Key` | State of the latest seeding job |
@@ -122,7 +123,9 @@ advantage = raw edge × trust
 - **`trust`** stops lucky small samples (say 5 wins in 6 games) from topping the list. With `k = 30`, a matchup with 30 games keeps half its raw edge, and one with 300 games keeps about 90%.
 - **`k`** is the `Counters:PriorGames` setting (default 30). Raise it to trust small samples less.
 
-OpenDota's matchup data appears to come from high-level/pro matches, so samples are small (a median of about 45 games per matchup).
+**Against a lineup** (`/api/counters`), each candidate's per-enemy advantages are added up into `totalAdvantage`, so a hero that counters several enemies ranks above one that strongly counters only one of them. An enemy without matchup data counts as 0. Heroes already in the lineup are never suggested, and `matchups` gives the per-enemy breakdown so you can see what each suggestion is based on. Invalid lineups (none, more than 5, duplicates, unknown IDs) return `400`.
+
+OpenDota's matchup data appears to come from high-level/pro matches, so samples are small (a median of about 45 games per matchup). Summing over a lineup can lift a hero with several small-sample edges to the top, so check the game counts in the breakdown.
 
 ## Configuration
 
