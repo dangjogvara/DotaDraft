@@ -1,5 +1,6 @@
 <ol class="space-y-2">
   @for (counter of counters(); track counter.id) {
+    @let single = counter.matchups.length === 1 ? counter.matchups[0] : null;
     <li class="rounded-md bg-slate-800 p-2" data-testid="counter">
       <div class="flex items-center gap-3">
         @if (counter.imgUrl) {
@@ -9,42 +10,69 @@
         }
         <div class="min-w-0 flex-1">
           <p class="truncate font-medium">{{ counter.localizedName }}</p>
+          @if (single && single.winRate !== null) {
+            <p class="text-xs text-slate-300" data-testid="matchup">
+              Wins {{ single.winRate | number: '1.1-1' }}% against {{ enemyName(single.enemyId) }}
+              <span [class.text-amber-400]="isFewGames(single.gamesPlayed)">
+                ({{ isFewGames(single.gamesPlayed) ? 'only ' : '' }}{{ single.gamesPlayed | number }} games)
+              </span>
+            </p>
+          } @else if (single) {
+            <p class="text-xs text-slate-500" data-testid="matchup">No games against {{ enemyName(single.enemyId) }} yet</p>
+          }
           <p class="text-xs text-slate-400">Usually wins {{ counter.baselineWinRate | number: '1.1-1' }}%</p>
         </div>
-        <span
-          class="shrink-0 text-lg font-semibold tabular-nums"
-          [class.text-emerald-400]="counter.totalAdvantage > 0"
-          [class.text-slate-400]="counter.totalAdvantage <= 0"
-          title="Sample-adjusted advantage summed over the lineup, in percentage points"
+        <div
+          class="shrink-0 text-right"
+          [attr.title]="
+            single
+              ? counter.localizedName + ' wins ' + (counter.totalAdvantage | number: '1.1-1') +
+                ' percentage points more often against ' + enemyName(single.enemyId) +
+                ' than in its average game, adjusted for how many games there are'
+              : 'Sum of ' + counter.localizedName + '\'s edge against each enemy, in percentage points'
+          "
         >
-          {{ counter.totalAdvantage > 0 ? '+' : '' }}{{ counter.totalAdvantage | number: '1.1-1' }}
-        </span>
+          <p
+            class="text-lg leading-tight font-semibold tabular-nums"
+            [class.text-emerald-400]="counter.totalAdvantage > 0"
+            [class.text-slate-400]="counter.totalAdvantage <= 0"
+          >
+            {{ counter.totalAdvantage > 0 ? '+' : '' }}{{ counter.totalAdvantage | number: '1.1-1' }}
+          </p>
+          <p class="text-[10px] text-slate-500" data-testid="advantage-label">
+            {{ single ? advantageLabel(counter.totalAdvantage) : 'combined edge' }}
+          </p>
+        </div>
       </div>
 
       @if (counter.matchups.length > 1) {
-        <ul class="mt-2 flex flex-wrap gap-1" aria-label="Advantage against each enemy">
+        <ul class="mt-2 flex flex-wrap gap-1" aria-label="Edge against each enemy">
           @for (m of counter.matchups; track m.enemyId) {
             <li
               class="inline-flex items-baseline gap-1 rounded bg-slate-900 px-1.5 py-0.5 text-xs tabular-nums"
               data-testid="breakdown"
-              [attr.title]="m.winRate === null ? 'No matchup data' : (m.winRate | number: '1.1-1') + '% over ' + m.gamesPlayed + ' games'"
+              [attr.title]="
+                m.winRate === null
+                  ? 'No matchup data'
+                  : 'Wins ' + (m.winRate | number: '1.1-1') + '% against ' + enemyName(m.enemyId) +
+                    ' over ' + (m.gamesPlayed | number) + ' games' +
+                    (isFewGames(m.gamesPlayed) ? ', too few to be sure' : '')
+              "
             >
-              <span class="text-slate-400">vs {{ enemies().get(m.enemyId)?.localizedName }}</span>
+              <span class="text-slate-400">vs {{ enemyName(m.enemyId) }}</span>
               @if (m.winRate === null) {
-                <span class="text-slate-500">–</span>
+                <span class="text-slate-500">no data</span>
               } @else {
                 <span [class.text-emerald-400]="m.advantage > 0" [class.text-slate-400]="m.advantage <= 0">
                   {{ m.advantage > 0 ? '+' : '' }}{{ m.advantage | number: '1.1-1' }}
                 </span>
-                <span class="text-slate-500">({{ m.gamesPlayed }}g)</span>
+                <span [class.text-amber-400]="isFewGames(m.gamesPlayed)" [class.text-slate-500]="!isFewGames(m.gamesPlayed)">
+                  ({{ isFewGames(m.gamesPlayed) ? 'only ' : '' }}{{ m.gamesPlayed | number }} games)
+                </span>
               }
             </li>
           }
         </ul>
-      } @else if (counter.matchups[0]; as m) {
-        <p class="mt-1 text-xs text-slate-400">
-          {{ m.winRate | number: '1.1-1' }}% win rate over {{ m.gamesPlayed }} games
-        </p>
       }
     </li>
   }
