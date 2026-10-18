@@ -1,6 +1,25 @@
-@DotaDraft.Api_HostAddress = http://localhost:5207
+@HostAddress = http://localhost:8080
+# Admin requests read the key from an environment variable so it never lands in this file:
+#   export DOTADRAFT_ADMIN_KEY="$(dotnet user-secrets list --project DotaDraft.Api | sed -n 's/^Admin:ApiKey = //p')"
+@AdminKey = {{$processEnv DOTADRAFT_ADMIN_KEY}}
 
-GET {{DotaDraft.Api_HostAddress}}/weatherforecast/
+### List heroes
+GET {{HostAddress}}/api/heroes
 Accept: application/json
 
-###
+### Top counter-picks for a hero (here Anti-Mage), ranked by sample-adjusted advantage; limit is 1-20
+GET {{HostAddress}}/api/heroes/1/counters?limit=5
+Accept: application/json
+
+### Seed heroes from OpenDota (run before seeding matchups)
+POST {{HostAddress}}/api/admin/seed-heroes
+X-Admin-Key: {{AdminKey}}
+
+### Queue matchup seeding as a background job (returns 202; takes a few minutes)
+POST {{HostAddress}}/api/admin/seed-matchups
+X-Admin-Key: {{AdminKey}}
+
+### Matchup seeding job status
+GET {{HostAddress}}/api/admin/seed-matchups/status
+X-Admin-Key: {{AdminKey}}
+Accept: application/json

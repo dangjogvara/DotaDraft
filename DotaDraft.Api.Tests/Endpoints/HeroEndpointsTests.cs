@@ -91,6 +91,14 @@ public class HeroEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnsNotFound_ForNonNumericId()
+    {
+        var response = await _factory.CreateClient().GetAsync("/api/heroes/abc/counters");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task ReturnsNotFound_ForUnknownHero()
     {
         var response = await _factory.CreateClient().GetAsync("/api/heroes/999/counters");

@@ -9,8 +9,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddOpenApi();
 
+// The connection string lives in user-secrets locally (see .env.example), so fail clearly if it's missing
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException(
+            "ConnectionStrings:DefaultConnection is not configured. Set it with dotnet user-secrets.")));
 
 builder.Services.Configure<OpenDotaOptions>(
     builder.Configuration.GetSection(OpenDotaOptions.SectionName));

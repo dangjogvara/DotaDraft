@@ -13,7 +13,7 @@ public static class HeroEndpoints
         var heroesApi = app.MapGroup("/api/heroes");
 
         heroesApi.MapGet("/", GetHeroes);
-        heroesApi.MapGet("/{id}/counters", GetHeroCounters);
+        heroesApi.MapGet("/{id:int}/counters", GetHeroCounters);
     }
 
     private static async Task<IResult> GetHeroes(AppDbContext db)
