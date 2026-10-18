@@ -15,11 +15,11 @@ public class HeroIngestionServiceTests
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
 
-    private HeroIngestionService CreateService() => new(
+    private HeroIngestionService CreateService(int matchupRequestDelayMs = 0) => new(
         _client,
         _db,
         NullLogger<HeroIngestionService>.Instance,
-        Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test", MatchupRequestDelayMs = 0 }));
+        Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test", MatchupRequestDelayMs = matchupRequestDelayMs }));
 
     private static OpenDotaHeroDto HeroDto(int id, string? img = null) =>
         new(id, $"npc_dota_hero_{id}", $"Hero {id}", "str", ["Carry"], img);
@@ -167,5 +167,21 @@ public class HeroIngestionServiceTests
         Assert.Equal(SeedFailure.Upstream, result.Failure);
         Assert.Equal(2, result.Saved);
         Assert.Equal([2], result.FailedHeroIds);
+    }
+
+    [Fact]
+    public async Task SeedMatchups_KeepsRateLimitDelay_AfterFailedAndEmptyResponses()
+    {
+        // Hero 1 fails, hero 2 returns nothing: both used to skip the delay before the next request
+        AddHeroes(1, 2, 3);
+        _client.FailingHeroIds.Add(1);
+        const int delayMs = 100;
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        await CreateService(delayMs).SeedMatchupsAsync();
+        stopwatch.Stop();
+
+        // One delay between each of the three requests
+        Assert.True(stopwatch.ElapsedMilliseconds >= 2 * delayMs, $"Elapsed {stopwatch.ElapsedMilliseconds} ms");
     }
 }

@@ -103,6 +103,11 @@ public class HeroIngestionService(
             // If the user cancelled or server is stopping, exit gracefully
             if (ct.IsCancellationRequested) break;
 
+            // Rate limiting: wait before every request but the first, so the delay also
+            // applies after a failed or empty response that skips the rest of the loop
+            if (i > 0)
+                await Task.Delay(_options.MatchupRequestDelayMs, ct);
+
             logger.LogInformation("Fetching matchups for {HeroName} ({HeroId})...", hero.LocalizedName, hero.Id);
 
             IReadOnlyList<OpenDotaMatchupDto> matchupDtos;
@@ -161,10 +166,6 @@ public class HeroIngestionService(
             // Detach this hero's matchups: keeps the tracker small across the run,
             // and after a failure stops the next hero's save from retrying them
             db.ChangeTracker.Clear();
-
-            // 3. Rate limiting: stays under OpenDota's request limit. Skip the delay after the last hero.
-            if (i < heroes.Count - 1)
-                await Task.Delay(_options.MatchupRequestDelayMs, ct);
         }
 
         logger.LogInformation("Matchup ingestion complete. Total rows inserted or updated: {TotalSaved}", totalSaved);
