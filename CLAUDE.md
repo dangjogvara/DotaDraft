@@ -59,6 +59,6 @@ npx ng build
 ## Gotchas
 
 - `docker exec` needs `-i` to receive SQL on stdin (heredocs). Without it, psql silently runs nothing.
-- To stop a background API, use `kill -TERM $(pgrep -x DotaDraft.Api)`. Don't use `pkill -f DotaDraft.Api`, which also matches and kills the shell running the command. SIGINT is ignored by processes started in the background.
+- To stop a background API, use `kill -TERM $(pgrep -x DotaDraft.Api)`. To stop `ng serve`, use `kill -TERM $(lsof -ti tcp:4200)`. Never use `pkill -f` or `pgrep -f` with a pattern that appears in your own command, because it matches and kills the shell running it. SIGINT is ignored by processes started in the background.
 - OpenDota's free tier allows 60 requests/minute and roughly 3,000/day, and still sends occasional bursts of 429s. Its OpenAPI spec is at `https://api.opendota.com/api`. Pro-match samples are small (a median of about 45 games per matchup).
 - Before applying a migration to the local DB, check `__EFMigrationsHistory`. The local DB once had an orphan migration that was never committed.
