@@ -16,12 +16,14 @@ public static class HeroEndpoints
         heroesApi.MapGet("/{id:int}/counters", GetHeroCounters);
     }
 
-    private static async Task<IResult> GetHeroes(AppDbContext db)
+    // Projects to HeroDto so the public contract doesn't follow the DB schema (e.g. the Matchups navigation)
+    private static async Task<IResult> GetHeroes(AppDbContext db, CancellationToken ct)
     {
         var heroes = await db.Heroes
             .AsNoTracking()
             .OrderBy(h => h.LocalizedName)
-            .ToListAsync();
+            .Select(h => new HeroDto(h.Id, h.Name, h.LocalizedName, h.PrimaryAttr, h.Roles, h.ImgUrl))
+            .ToListAsync(ct);
         return TypedResults.Ok(heroes);
     }
 

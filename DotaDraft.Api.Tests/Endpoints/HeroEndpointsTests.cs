@@ -91,6 +91,21 @@ public class HeroEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetHeroes_ReturnsHeroDtosSortedByName_WithoutMatchups()
+    {
+        var response = await _factory.CreateClient().GetAsync("/api/heroes");
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("matchups", json, StringComparison.OrdinalIgnoreCase);
+
+        var heroes = await response.Content.ReadFromJsonAsync<List<HeroDto>>();
+        Assert.Equal(5, heroes!.Count);
+        Assert.Equal(heroes.Select(h => h.LocalizedName).Order(), heroes.Select(h => h.LocalizedName));
+        Assert.Equal("npc_dota_hero_1", heroes.Single(h => h.Id == 1).Name);
+    }
+
+    [Fact]
     public async Task ReturnsNotFound_ForNonNumericId()
     {
         var response = await _factory.CreateClient().GetAsync("/api/heroes/abc/counters");

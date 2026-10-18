@@ -51,8 +51,9 @@ public class HeroIngestionService(
             hero.LocalizedName = dto.LocalizedName;
             hero.PrimaryAttr = dto.PrimaryAttr;
             hero.Roles = dto.Roles;
-            // Prefix relative path ("/apps/dota2/images/...") with Steam's CDN host
-            hero.ImgUrl = string.IsNullOrWhiteSpace(dto.Img) ? null : $"{_options.SteamCdnBaseUrl}{dto.Img}";
+            // Prefix relative path ("/apps/dota2/images/...png?") with Steam's CDN host. OpenDota ends paths
+            // with an empty query string; trimming only a trailing '?' keeps any real query intact
+            hero.ImgUrl = string.IsNullOrWhiteSpace(dto.Img) ? null : $"{_options.SteamCdnBaseUrl}{dto.Img.TrimEnd('?')}";
         }
 
         var (inserted, updated) = CountPendingWrites();
