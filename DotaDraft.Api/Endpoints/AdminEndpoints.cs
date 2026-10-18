@@ -54,6 +54,7 @@ public static class AdminEndpoints
         status.FinishedAt,
         saved = status.Result?.Saved,
         failedHeroIds = status.Result?.FailedHeroIds,
+        failedWindows = status.Result?.FailedWindows,
         error = status.Error
     };
 
@@ -73,6 +74,8 @@ public static class AdminEndpoints
         var extensions = new Dictionary<string, object?> { ["saved"] = result.Saved };
         if (result.FailedHeroIds.Count > 0)
             extensions["failedHeroIds"] = result.FailedHeroIds;
+        if (result.FailedWindows > 0)
+            extensions["failedWindows"] = result.FailedWindows;
 
         return TypedResults.Problem(detail: result.Error, statusCode: statusCode, extensions: extensions);
     }
