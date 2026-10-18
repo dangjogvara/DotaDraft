@@ -3,7 +3,6 @@ using DotaDraft.Api.Endpoints;
 using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,12 +15,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.Configure<OpenDotaOptions>(
     builder.Configuration.GetSection(OpenDotaOptions.SectionName));
 
-builder.Services.AddHttpClient<IOpenDotaClient, OpenDotaClient>((sp, client) =>
-{
-    var options = sp.GetRequiredService<IOptions<OpenDotaOptions>>().Value;
-    client.BaseAddress = new Uri(options.BaseUrl);
-    client.DefaultRequestHeaders.Add("User-Agent", "DotaDraftApp/1.0");
-});
+builder.Services.AddOpenDotaClient();
 
 builder.Services.AddScoped<HeroIngestionService>();
 builder.Services.AddSingleton<MatchupSeedJob>();
