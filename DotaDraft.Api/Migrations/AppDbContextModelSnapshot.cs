@@ -58,11 +58,11 @@ namespace DotaDraft.Api.Migrations
                     b.Property<int>("AgainstHeroId")
                         .HasColumnType("integer");
 
-                    b.Property<decimal>("Advantage")
-                        .HasColumnType("numeric");
-
                     b.Property<int>("GamesPlayed")
                         .HasColumnType("integer");
+
+                    b.Property<decimal>("WinRate")
+                        .HasColumnType("numeric");
 
                     b.Property<int>("Wins")
                         .HasColumnType("integer");

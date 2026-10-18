@@ -17,6 +17,9 @@ builder.Services.Configure<OpenDotaOptions>(
 
 builder.Services.AddOpenDotaClient();
 
+builder.Services.Configure<CounterOptions>(
+    builder.Configuration.GetSection(CounterOptions.SectionName));
+
 builder.Services.AddScoped<HeroIngestionService>();
 builder.Services.AddSingleton<MatchupSeedJob>();
 builder.Services.AddHostedService<MatchupSeedWorker>();

@@ -10,5 +10,5 @@ public class HeroMatchup
 
     public int GamesPlayed { get; set; }
     public int Wins { get; set; }
-    public decimal Advantage { get; set; }
+    public decimal WinRate { get; set; }
 }
