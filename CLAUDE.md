@@ -8,6 +8,7 @@ Dota 2 counter-pick app: an ASP.NET Core Minimal API (.NET 10) with PostgreSQL v
 dotnet build
 dotnet test                                                    # no DB, Docker or secrets needed
 dotnet run --project DotaDraft.Api --launch-profile http       # http://localhost:8080
+dotnet tool restore                                            # once: installs the pinned dotnet-ef
 dotnet ef migrations add <Name> --project DotaDraft.Api
 dotnet ef database update --project DotaDraft.Api
 docker compose up -d                                           # Postgres, container dota_postgres
@@ -24,6 +25,7 @@ npx ng build
 - Branch off an up-to-date `main` as `<type>/<short-slug>-<issue#>`, e.g. `fix/rate-limit-delay-24`.
 - Commit messages: `<type>: <summary> (#<issue>)`, with types `feat`, `fix`, `refactor`, `chore`, `docs`.
 - PR body: `Closes #<issue>`, a Changes section and a Testing section that says what was verified, including anything not verified.
+- CI (`.github/workflows/ci.yml`) must pass before merging. Check it with `gh pr checks <pr> --watch`.
 - Merge with `gh pr merge --squash --delete-branch`, then return to `main`.
 - Ask before committing, opening a PR or merging.
 

@@ -8,7 +8,7 @@ The backend is an ASP.NET Core Minimal API with PostgreSQL. The frontend is an A
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
-- EF Core CLI: `dotnet tool install --global dotnet-ef`
+- EF Core CLI, pinned in `dotnet-tools.json`: run `dotnet tool restore` once after cloning
 - [Node.js](https://nodejs.org/) 20.19+ (for the frontend)
 
 ## Local setup
@@ -143,6 +143,8 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 **CORS:** in Development, the Angular dev server (`ng serve` on port 4200) can call the API directly. In production, no origins are allowed until you configure them, for example `Cors__AllowedOrigins__0=https://your-app.example.com`. Serve the API over HTTPS there, since the admin key travels in a header.
 
 ## Tests
+
+GitHub Actions (`.github/workflows/ci.yml`) runs both suites, the Angular build, and a check that the EF model has no changes without a migration, on every pull request and every push to `main`. To run them locally:
 
 ```bash
 dotnet test                                      # API
