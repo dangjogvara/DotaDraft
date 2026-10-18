@@ -1,0 +1,43 @@
+<div class="mb-4">
+  <div class="mb-2 flex items-center justify-between">
+    <h2 class="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+      Enemy lineup ({{ lineup().length }}/5)
+    </h2>
+    @if (lineup().length > 0) {
+      <button type="button" class="text-sm text-slate-400 hover:text-white" (click)="cleared.emit()">
+        Clear
+      </button>
+    }
+  </div>
+
+  <ol class="grid grid-cols-5 gap-2">
+    @for (hero of slots(); track $index) {
+      <li class="relative" data-testid="slot">
+        @if (hero) {
+          <div class="overflow-hidden rounded-md bg-slate-800 ring-2 ring-red-500/70">
+            @if (hero.imgUrl) {
+              <img [src]="hero.imgUrl" alt="" class="aspect-video w-full object-cover" />
+            } @else {
+              <div class="aspect-video w-full bg-slate-700"></div>
+            }
+            <span class="block truncate px-1 py-0.5 text-xs">{{ hero.localizedName }}</span>
+          </div>
+          <button
+            type="button"
+            class="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-slate-950/80 text-xs text-slate-200 hover:bg-red-600"
+            [attr.aria-label]="'Remove ' + hero.localizedName"
+            (click)="removed.emit(hero)"
+          >
+            ✕
+          </button>
+        } @else {
+          <div
+            class="flex aspect-video items-center justify-center rounded-md border border-dashed border-slate-700 text-xs text-slate-600"
+          >
+            Empty
+          </div>
+        }
+      </li>
+    }
+  </ol>
+</div>

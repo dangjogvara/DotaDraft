@@ -22,16 +22,18 @@
     } @else {
       <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
         <section class="min-w-0 flex-1" aria-label="Heroes">
+          <app-lineup-slots [lineup]="lineup()" (removed)="removeEnemy($event)" (cleared)="clearLineup()" />
           <app-hero-filters [(query)]="query" [(attribute)]="attribute" />
 
           @for (group of heroGroups(); track group.attribute) {
-            <h2 class="mt-4 mb-2 text-sm font-semibold tracking-wide text-slate-400 uppercase first-of-type:mt-0">
+            <h2 class="mt-4 mb-2 text-sm font-semibold tracking-wide text-slate-400 uppercase">
               {{ group.label }}
             </h2>
             <app-hero-grid
               [heroes]="group.heroes"
-              [selectedHeroId]="selectedHero()?.id ?? null"
-              (heroSelected)="selectHero($event)"
+              [pickedIds]="pickedIds()"
+              [full]="lineupFull()"
+              (heroSelected)="addEnemy($event)"
             />
           } @empty {
             <p class="text-slate-400" data-testid="no-matches">No heroes match your filters.</p>
@@ -39,25 +41,31 @@
         </section>
 
         <aside class="lg:sticky lg:top-6 lg:w-96" aria-live="polite" data-testid="counters-panel">
-          @if (selectedHero(); as hero) {
-            <h2 class="mb-3 text-lg font-semibold">Counters to {{ hero.localizedName }}</h2>
+          @if (lineup().length > 0) {
+            <h2 class="mb-3 text-lg font-semibold">
+              @if (lineup().length === 1) {
+                Counters to {{ lineup()[0].localizedName }}
+              } @else {
+                Counters to the enemy lineup
+              }
+            </h2>
             @switch (counters()?.status) {
               @case ('loading') {
                 <p class="text-slate-400">Loading counters…</p>
               }
               @case ('error') {
-                <p class="text-red-300">Could not load counters. Try selecting the hero again.</p>
+                <p class="text-red-300">Could not load counters. Try changing the lineup.</p>
               }
               @case ('loaded') {
                 @if (counterList().length === 0) {
-                  <p class="text-slate-400">No matchup data for this hero yet. Seed matchups first.</p>
+                  <p class="text-slate-400">No matchup data for these heroes yet. Seed matchups first.</p>
                 } @else {
-                  <app-counter-list [counters]="counterList()" />
+                  <app-counter-list [counters]="counterList()" [lineup]="lineup()" />
                 }
               }
             }
           } @else {
-            <p class="text-slate-400">Pick a hero to see who counters it.</p>
+            <p class="text-slate-400">Pick up to five enemy heroes to see who counters them.</p>
           }
         </aside>
       </div>
