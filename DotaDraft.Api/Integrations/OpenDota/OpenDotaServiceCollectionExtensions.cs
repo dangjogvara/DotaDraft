@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -13,6 +14,10 @@ public static class OpenDotaServiceCollectionExtensions
             var options = sp.GetRequiredService<IOptions<OpenDotaOptions>>().Value;
             client.BaseAddress = new Uri(options.BaseUrl);
             client.DefaultRequestHeaders.Add("User-Agent", "DotaDraftApp/1.0");
+
+            // Sent as a header rather than the api_key query parameter, so it stays out of logged request URLs
+            if (!string.IsNullOrWhiteSpace(options.ApiKey))
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
         });
 
         // Retry transient failures (429, 408, 5xx, network errors), honouring Retry-After when OpenDota sends it.

@@ -12,7 +12,7 @@ public class OpenDotaClientTests
     private readonly StubHandler _handler = new();
 
     // Uses the production registration so the retry pipeline under test is the real one
-    private IOpenDotaClient CreateClient(int maxRetryAttempts = 3, int retryMaxDelayMs = 60000) =>
+    private IOpenDotaClient CreateClient(int maxRetryAttempts = 3, int retryMaxDelayMs = 60000, string? apiKey = null) =>
         new ServiceCollection()
             .AddLogging()
             .Configure<OpenDotaOptions>(o =>
@@ -21,6 +21,7 @@ public class OpenDotaClientTests
                 o.MaxRetryAttempts = maxRetryAttempts;
                 o.RetryBaseDelayMs = 1;
                 o.RetryMaxDelayMs = retryMaxDelayMs;
+                o.ApiKey = apiKey;
             })
             .AddOpenDotaClient()
             .ConfigurePrimaryHttpMessageHandler(() => _handler)
@@ -107,14 +108,39 @@ public class OpenDotaClientTests
         Assert.Equal(1, _handler.Requests);
     }
 
+    [Fact]
+    public async Task SendsApiKeyAsBearerToken_NotInUrl()
+    {
+        _handler.Responses.Enqueue(Json(MatchupsJson));
+
+        await CreateClient(apiKey: "secret-key").GetHeroMatchupsAsync(1);
+
+        var request = _handler.LastRequest!;
+        Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+        Assert.Equal("secret-key", request.Headers.Authorization?.Parameter);
+        Assert.DoesNotContain("secret-key", request.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task SendsNoAuthorizationHeader_WithoutApiKey()
+    {
+        _handler.Responses.Enqueue(Json(MatchupsJson));
+
+        await CreateClient().GetHeroMatchupsAsync(1);
+
+        Assert.Null(_handler.LastRequest!.Headers.Authorization);
+    }
+
     private class StubHandler : HttpMessageHandler
     {
         public Queue<HttpResponseMessage> Responses { get; } = new();
         public int Requests { get; private set; }
+        public HttpRequestMessage? LastRequest { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Requests++;
+            LastRequest = request;
             return Task.FromResult(Responses.Dequeue());
         }
     }
