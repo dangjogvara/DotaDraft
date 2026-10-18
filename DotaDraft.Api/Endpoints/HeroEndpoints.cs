@@ -1,6 +1,8 @@
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Dtos;
+using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Endpoints;
 
@@ -26,6 +28,7 @@ public static class HeroEndpoints
     private static async Task<IResult> GetHeroCounters(
         int id,
         AppDbContext db,
+        IOptions<CounterOptions> options,
         int limit = 5,
         CancellationToken ct = default)
     {
@@ -39,21 +42,50 @@ public static class HeroEndpoints
         // 2. Clamp limit to avoid negative numbers or excessively large queries
         var clampedLimit = Math.Clamp(limit, 1, 20);
 
-        // 3. Query heroes who face this hero and have the highest win rate
-        var counters = await db.HeroMatchups
+        // 3. Load every hero's results against this hero (at most one row per hero)
+        var matchups = await db.HeroMatchups
             .AsNoTracking()
             .Where(m => m.AgainstHeroId == id && m.GamesPlayed > 0)
-            .OrderByDescending(m => m.Advantage)
-            .Take(clampedLimit)
-            .Select(m => new HeroCounterDto(
+            .Select(m => new
+            {
                 m.Hero.Id,
                 m.Hero.LocalizedName,
                 m.Hero.PrimaryAttr,
                 m.Hero.ImgUrl,
-                m.Advantage,
-                m.GamesPlayed
-            ))
+                m.Wins,
+                m.GamesPlayed,
+                m.WinRate
+            })
             .ToListAsync(ct);
+
+        // 4. Each hero's overall win rate across all its matchups, so general strength isn't mistaken for countering
+        var baselines = await db.HeroMatchups
+            .AsNoTracking()
+            .GroupBy(m => m.HeroId)
+            .Select(g => new { HeroId = g.Key, Wins = g.Sum(m => m.Wins), Games = g.Sum(m => m.GamesPlayed) })
+            .ToDictionaryAsync(b => b.HeroId, b => b.Games > 0 ? (double)b.Wins / b.Games : 0.5, ct);
+
+        // 5. Rank by sample-adjusted advantage over the baseline
+        var priorGames = options.Value.PriorGames;
+        var counters = matchups
+            .Select(m =>
+            {
+                var baseline = baselines.GetValueOrDefault(m.Id, 0.5);
+                var advantage = CounterRanking.Advantage(m.Wins, m.GamesPlayed, baseline, priorGames);
+                return new HeroCounterDto(
+                    m.Id,
+                    m.LocalizedName,
+                    m.PrimaryAttr,
+                    m.ImgUrl,
+                    Math.Round((decimal)advantage * 100m, 2),
+                    m.WinRate,
+                    Math.Round((decimal)baseline * 100m, 2),
+                    m.GamesPlayed);
+            })
+            .OrderByDescending(c => c.Advantage)
+            .ThenByDescending(c => c.GamesPlayed)
+            .Take(clampedLimit)
+            .ToList();
 
         return TypedResults.Ok(counters);
     }

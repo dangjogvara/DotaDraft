@@ -116,15 +116,15 @@ public class HeroIngestionServiceTests
         Assert.Equal(2, result.Saved);
         var matchup = await _db.HeroMatchups.SingleAsync(m => m.HeroId == 1);
         Assert.Equal(2, matchup.AgainstHeroId);
-        Assert.Equal(55.00m, matchup.Advantage);
-        Assert.Equal(0m, (await _db.HeroMatchups.SingleAsync(m => m.HeroId == 2)).Advantage);
+        Assert.Equal(55.00m, matchup.WinRate);
+        Assert.Equal(0m, (await _db.HeroMatchups.SingleAsync(m => m.HeroId == 2)).WinRate);
     }
 
     [Fact]
     public async Task SeedMatchups_UpdatesExistingPairs()
     {
         AddHeroes(1, 2);
-        _db.HeroMatchups.Add(new HeroMatchup { HeroId = 1, AgainstHeroId = 2, GamesPlayed = 10, Wins = 5, Advantage = 50m });
+        _db.HeroMatchups.Add(new HeroMatchup { HeroId = 1, AgainstHeroId = 2, GamesPlayed = 10, Wins = 5, WinRate = 50m });
         await _db.SaveChangesAsync();
         _db.ChangeTracker.Clear();
         _client.Matchups[1] = [new(2, 200, 110)];
@@ -136,7 +136,7 @@ public class HeroIngestionServiceTests
         var matchup = await _db.HeroMatchups.AsNoTracking().SingleAsync();
         Assert.Equal(200, matchup.GamesPlayed);
         Assert.Equal(110, matchup.Wins);
-        Assert.Equal(55.00m, matchup.Advantage);
+        Assert.Equal(55.00m, matchup.WinRate);
     }
 
     [Fact]

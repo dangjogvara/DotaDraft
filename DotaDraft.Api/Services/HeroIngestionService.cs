@@ -143,7 +143,7 @@ public class HeroIngestionService(
 
                 matchup.GamesPlayed = dto.GamesPlayed;
                 matchup.Wins = dto.Wins;
-                matchup.Advantage = dto.GamesPlayed > 0
+                matchup.WinRate = dto.GamesPlayed > 0
                     ? Math.Round(((decimal)dto.Wins / dto.GamesPlayed) * 100m, 2)
                     : 0m;
             }
