@@ -4,9 +4,20 @@ namespace DotaDraft.Api.Endpoints;
 
 public static class AdminEndpoints
 {
+    public const string AdminKeyConfigKey = "Admin:ApiKey";
+
     public static void RegisterAdminEndpoints(this WebApplication app)
     {
-        var adminApi = app.MapGroup("/api/admin");
+        // Fail closed: without a configured key the endpoints don't exist, rather than being open
+        var adminKey = app.Configuration[AdminKeyConfigKey];
+        if (string.IsNullOrWhiteSpace(adminKey))
+        {
+            app.Logger.LogWarning("{ConfigKey} is not configured; admin endpoints are disabled.", AdminKeyConfigKey);
+            return;
+        }
+
+        var adminApi = app.MapGroup("/api/admin")
+            .AddEndpointFilter(new AdminKeyFilter(adminKey));
 
         adminApi.MapPost("/seed-heroes", SeedHeroes);
         adminApi.MapPost("/seed-matchups", SeedMatchups);
