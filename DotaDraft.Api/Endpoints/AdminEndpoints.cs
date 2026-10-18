@@ -10,6 +10,7 @@ public static class AdminEndpoints
 
         adminApi.MapPost("/seed-heroes", SeedHeroes);
         adminApi.MapPost("/seed-matchups", SeedMatchups);
+        adminApi.MapGet("/seed-matchups/status", GetMatchupSeedStatus);
     }
 
     private static async Task<IResult> SeedHeroes(HeroIngestionService ingestion, CancellationToken ct)
@@ -18,11 +19,32 @@ public static class AdminEndpoints
         return ToResult(result, $"Seeded {result.Saved} heroes.");
     }
 
-    private static async Task<IResult> SeedMatchups(HeroIngestionService ingestion, CancellationToken ct)
+    // Matchup seeding takes minutes, so it is queued for MatchupSeedWorker instead of run in the request
+    private static IResult SeedMatchups(MatchupSeedJob job)
     {
-        var result = await ingestion.SeedMatchupsAsync(ct);
-        return ToResult(result, $"Seeded {result.Saved} matchup records.");
+        if (!job.TryEnqueue())
+        {
+            return TypedResults.Problem(
+                detail: "Matchup seeding is already queued or running.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
+        return TypedResults.Accepted("/api/admin/seed-matchups/status", ToStatusResponse(job.Status));
     }
+
+    private static IResult GetMatchupSeedStatus(MatchupSeedJob job) =>
+        TypedResults.Ok(ToStatusResponse(job.Status));
+
+    private static object ToStatusResponse(SeedJobStatus status) => new
+    {
+        state = status.State.ToString(),
+        status.QueuedAt,
+        status.StartedAt,
+        status.FinishedAt,
+        saved = status.Result?.Saved,
+        failedHeroIds = status.Result?.FailedHeroIds,
+        error = status.Error
+    };
 
     private static IResult ToResult(SeedResult result, string successMessage)
     {
