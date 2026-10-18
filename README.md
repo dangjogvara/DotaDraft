@@ -2,13 +2,14 @@
 
 A Dota 2 draft helper. Given an enemy hero, DotaDraft suggests the heroes that counter it best, using hero matchup data from the [OpenDota API](https://docs.opendota.com).
 
-The backend is an ASP.NET Core Minimal API with PostgreSQL. An Angular client is planned.
+The backend is an ASP.NET Core Minimal API with PostgreSQL. The frontend is an Angular app styled with Tailwind CSS (`DotaDraft.Web/`).
 
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
 - EF Core CLI: `dotnet tool install --global dotnet-ef`
+- [Node.js](https://nodejs.org/) 20.19+ (for the frontend)
 
 ## Local setup
 
@@ -55,6 +56,16 @@ Secrets never live in the repo. The database password goes in a gitignored `.env
    ```
 
 6. **Seed the data** (see below).
+
+7. **Run the frontend** on http://localhost:4200, in a second terminal:
+
+   ```bash
+   cd DotaDraft.Web
+   npm install
+   npm start          # ng serve
+   ```
+
+   In development it calls the API at `http://localhost:8080` (set in `src/environments/environment.development.ts`). CORS already allows the dev server's origin.
 
 ## Seeding
 
@@ -134,10 +145,11 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 ## Tests
 
 ```bash
-dotnet test
+dotnet test                                      # API
+cd DotaDraft.Web && npm test -- --watch=false    # frontend (Vitest)
 ```
 
-The tests don't need Docker, the database or any secrets. They use EF Core's in-memory database and a fake OpenDota client. HTTP-level tests start the real app in memory through `DotaDraftApiFactory`.
+The API tests don't need Docker, the database or any secrets. They use EF Core's in-memory database and a fake OpenDota client. HTTP-level tests start the real app in memory through `DotaDraftApiFactory`. The frontend tests stub HTTP calls with Angular's `HttpTestingController`.
 
 ## Project structure
 
@@ -150,4 +162,7 @@ DotaDraft.Api/
   Models/, Data/           EF Core entities and DbContext
   Migrations/              EF Core migrations
 DotaDraft.Api.Tests/       xUnit tests
+DotaDraft.Web/             Angular client (Tailwind CSS, Vitest)
+  src/app/heroes/          API models and HeroApiService
+  src/environments/        API base URL per build configuration
 ```

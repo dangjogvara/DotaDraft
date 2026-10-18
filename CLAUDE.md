@@ -1,6 +1,6 @@
 # DotaDraft
 
-Dota 2 counter-pick API: ASP.NET Core Minimal API (.NET 10), PostgreSQL via EF Core, data from the OpenDota API. An Angular client is planned. Setup, endpoints, configuration and the counter-ranking formula are in [README.md](README.md).
+Dota 2 counter-pick app: an ASP.NET Core Minimal API (.NET 10) with PostgreSQL via EF Core and data from the OpenDota API, plus an Angular 21 client with Tailwind CSS v4 in `DotaDraft.Web/`. Setup, endpoints, configuration and the counter-ranking formula are in [README.md](README.md).
 
 ## Commands
 
@@ -11,6 +11,11 @@ dotnet run --project DotaDraft.Api --launch-profile http       # http://localhos
 dotnet ef migrations add <Name> --project DotaDraft.Api
 dotnet ef database update --project DotaDraft.Api
 docker compose up -d                                           # Postgres, container dota_postgres
+
+cd DotaDraft.Web
+npm start                                                      # ng serve, http://localhost:4200
+npm test -- --watch=false                                      # Vitest
+npx ng build
 ```
 
 ## Workflow
@@ -35,7 +40,9 @@ docker compose up -d                                           # Postgres, conta
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
 - `Services/`: `HeroIngestionService` (scoped seeding with upserts), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding), `CounterRanking`.
 - Settings are options classes with a `SectionName` and documented defaults. Keep `appsettings.json` and the README's configuration table in sync.
+- Frontend: standalone components, signals, and Tailwind utility classes in templates. API calls go through `HeroApiService` using `environment.apiBaseUrl`. The interfaces in `hero.models.ts` mirror the C# DTOs, so change both together.
 - Tests:
+  - Frontend: `provideHttpClientTesting()` with `HttpTestingController`.
   - `DotaDraftApiFactory` for HTTP-level tests: the real app with an in-memory DB and `FakeOpenDotaClient`.
   - The in-memory DB directly for service tests.
   - `ServiceCollection` + `AddOpenDotaClient()` with a stub `HttpMessageHandler` for client and retry tests.
