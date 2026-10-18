@@ -1,4 +1,4 @@
-namespace DotaDraft.Api.Services;
+namespace DotaDraft.Api.Integrations.OpenDota;
 
 public class OpenDotaOptions
 {

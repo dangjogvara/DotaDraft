@@ -1,16 +1,15 @@
-using System.Text.Json;
 using DotaDraft.Api.Data;
-using DotaDraft.Api.Dtos;
+using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Services;
 
-public class OpenDotaService(
-    HttpClient httpClient,
+public class HeroIngestionService(
+    IOpenDotaClient openDota,
     AppDbContext db,
-    ILogger<OpenDotaService> logger,
+    ILogger<HeroIngestionService> logger,
     IOptions<OpenDotaOptions> options)
 {
     private readonly OpenDotaOptions _options = options.Value;
@@ -19,18 +18,17 @@ public class OpenDotaService(
     {
         logger.LogInformation("Fetching heroes from OpenDota API...");
 
-        List<OpenDotaHeroDto>? heroDtos;
+        IReadOnlyList<OpenDotaHeroDto> heroDtos;
         try
         {
-            heroDtos = await httpClient.GetFromJsonAsync<List<OpenDotaHeroDto>>("api/heroStats", ct);
+            heroDtos = await openDota.GetHeroStatsAsync(ct);
         }
-        catch (Exception ex) when (IsUpstreamFailure(ex, ct))
+        catch (OpenDotaException ex)
         {
             logger.LogError(ex, "Failed to retrieve heroes from OpenDota.");
             return SeedResult.Failed(SeedFailure.Upstream, "Failed to retrieve heroes from OpenDota.");
         }
 
-        heroDtos ??= [];
         if (heroDtos.Count == 0)
         {
             logger.LogWarning("No heroes returned from OpenDota.");
@@ -112,20 +110,19 @@ public class OpenDotaService(
 
             logger.LogInformation("Fetching matchups for {HeroName} ({HeroId})...", hero.LocalizedName, hero.Id);
 
-            List<OpenDotaMatchupDto>? matchupDtos;
+            IReadOnlyList<OpenDotaMatchupDto> matchupDtos;
             try
             {
-                matchupDtos = await httpClient.GetFromJsonAsync<List<OpenDotaMatchupDto>>(
-                    $"api/heroes/{hero.Id}/matchups", ct);
+                matchupDtos = await openDota.GetHeroMatchupsAsync(hero.Id, ct);
             }
-            catch (Exception ex) when (IsUpstreamFailure(ex, ct))
+            catch (OpenDotaException ex)
             {
                 logger.LogError(ex, "Failed to retrieve matchups for hero ID {HeroId}", hero.Id);
                 upstreamFailures.Add(hero.Id);
                 continue;
             }
 
-            if (matchupDtos is null || matchupDtos.Count == 0) continue;
+            if (matchupDtos.Count == 0) continue;
 
             var newMatchups = new List<HeroMatchup>();
 
@@ -183,10 +180,4 @@ public class OpenDotaService(
         return SeedResult.Failed(failure, $"Matchups failed for {failedHeroIds.Count} of {heroes.Count} heroes.", totalSaved)
             with { FailedHeroIds = failedHeroIds };
     }
-
-    // HTTP errors, malformed JSON and HttpClient timeouts are OpenDota's fault.
-    // Cancellation by the caller is not, and must propagate.
-    private static bool IsUpstreamFailure(Exception ex, CancellationToken ct) =>
-        ex is HttpRequestException or JsonException
-        || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 }
