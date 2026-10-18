@@ -24,6 +24,8 @@ builder.Services.AddHttpClient<IOpenDotaClient, OpenDotaClient>((sp, client) =>
 });
 
 builder.Services.AddScoped<HeroIngestionService>();
+builder.Services.AddSingleton<MatchupSeedJob>();
+builder.Services.AddHostedService<MatchupSeedWorker>();
 
 var app = builder.Build();
 
