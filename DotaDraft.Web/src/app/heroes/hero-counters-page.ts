@@ -4,6 +4,8 @@ import { Subject, catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { CounterList } from './counter-list';
 import { HeroApiService } from './hero-api.service';
+import { PrimaryAttr, filterHeroes, groupByAttribute } from './hero-filter';
+import { HeroFilters } from './hero-filters';
 import { HeroGrid } from './hero-grid';
 import { Hero, HeroCounter } from './hero.models';
 
@@ -14,7 +16,7 @@ const loadedData = <T>(state: LoadState<T> | null): T | undefined =>
 
 @Component({
   selector: 'app-hero-counters-page',
-  imports: [HeroGrid, CounterList],
+  imports: [HeroFilters, HeroGrid, CounterList],
   templateUrl: './hero-counters-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -28,6 +30,12 @@ export class HeroCountersPage {
   protected readonly counters = signal<LoadState<HeroCounter[]> | null>(null);
 
   protected readonly heroList = computed(() => loadedData(this.heroes()) ?? []);
+
+  protected readonly query = signal('');
+  protected readonly attribute = signal<PrimaryAttr | null>(null);
+  protected readonly heroGroups = computed(() =>
+    groupByAttribute(filterHeroes(this.heroList(), this.query(), this.attribute())),
+  );
   protected readonly counterList = computed(() => loadedData(this.counters()) ?? []);
 
   constructor() {

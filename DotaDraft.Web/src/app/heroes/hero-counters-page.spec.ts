@@ -9,17 +9,17 @@ import { Hero, HeroCounter } from './hero.models';
 const heroesUrl = `${environment.apiBaseUrl}/api/heroes`;
 const countersUrl = (id: number) => `${heroesUrl}/${id}/counters?limit=5`;
 
-const hero = (id: number, localizedName: string): Hero => ({
+const hero = (id: number, localizedName: string, primaryAttr = 'agi'): Hero => ({
   id,
   name: `npc_dota_hero_${id}`,
   localizedName,
-  primaryAttr: 'agi',
+  primaryAttr,
   roles: [],
   imgUrl: `https://cdn.test/${id}.png`,
 });
 
 const antiMage = hero(1, 'Anti-Mage');
-const axe = hero(2, 'Axe');
+const axe = hero(2, 'Axe', 'str');
 
 const weaver: HeroCounter = {
   id: 63,
@@ -143,5 +143,57 @@ describe('HeroCountersPage', () => {
     render();
 
     expect(text('[data-testid="counters-panel"]')).toContain('No matchup data');
+  });
+
+  const visibleHeroes = () =>
+    [...el().querySelectorAll('app-hero-grid button')].map((b) => b.textContent?.trim());
+
+  function search(query: string) {
+    const input = el().querySelector<HTMLInputElement>('app-hero-filters input')!;
+    input.value = query;
+    input.dispatchEvent(new Event('input'));
+    render();
+  }
+
+  it('groups the grid by attribute in in-game order', () => {
+    loadHeroes();
+
+    const headings = [...el().querySelectorAll('section h2')].map((h) => h.textContent?.trim());
+    expect(headings).toEqual(['Strength', 'Agility']);
+    expect(visibleHeroes()).toEqual(['Axe', 'Anti-Mage']);
+  });
+
+  it('filters the grid by search and attribute', () => {
+    loadHeroes();
+
+    search('anti');
+    expect(visibleHeroes()).toEqual(['Anti-Mage']);
+
+    search('');
+    [...el().querySelectorAll<HTMLButtonElement>('app-hero-filters button')]
+      .find((b) => b.textContent?.trim() === 'Strength')!
+      .click();
+    render();
+    expect(visibleHeroes()).toEqual(['Axe']);
+  });
+
+  it('says so when nothing matches', () => {
+    loadHeroes();
+
+    search('zzz');
+
+    expect(visibleHeroes()).toEqual([]);
+    expect(text('[data-testid="no-matches"]')).toContain('No heroes match');
+  });
+
+  it('keeps the selected hero and its counters while filtering', () => {
+    loadHeroes();
+    click('Anti-Mage');
+    http.expectOne(countersUrl(1)).flush([weaver]);
+    render();
+
+    search('axe');
+
+    expect(text('[data-testid="counters-panel"]')).toContain('Counters to Anti-Mage');
   });
 });

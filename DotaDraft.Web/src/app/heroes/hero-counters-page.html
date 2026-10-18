@@ -22,11 +22,20 @@
     } @else {
       <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
         <section class="min-w-0 flex-1" aria-label="Heroes">
-          <app-hero-grid
-            [heroes]="heroList()"
-            [selectedHeroId]="selectedHero()?.id ?? null"
-            (heroSelected)="selectHero($event)"
-          />
+          <app-hero-filters [(query)]="query" [(attribute)]="attribute" />
+
+          @for (group of heroGroups(); track group.attribute) {
+            <h2 class="mt-4 mb-2 text-sm font-semibold tracking-wide text-slate-400 uppercase first-of-type:mt-0">
+              {{ group.label }}
+            </h2>
+            <app-hero-grid
+              [heroes]="group.heroes"
+              [selectedHeroId]="selectedHero()?.id ?? null"
+              (heroSelected)="selectHero($event)"
+            />
+          } @empty {
+            <p class="text-slate-400" data-testid="no-matches">No heroes match your filters.</p>
+          }
         </section>
 
         <aside class="lg:sticky lg:top-6 lg:w-96" aria-live="polite" data-testid="counters-panel">

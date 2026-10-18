@@ -1,0 +1,35 @@
+<div class="mb-4 flex flex-wrap items-center gap-3">
+  <label class="relative block w-full sm:w-64">
+    <span class="sr-only">Search heroes</span>
+    <input
+      #search
+      type="search"
+      placeholder="Search heroes"
+      class="w-full rounded-md bg-slate-800 px-3 py-1.5 pr-8 text-sm placeholder:text-slate-500 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+      [value]="query()"
+      (input)="query.set(search.value)"
+      (keydown)="onSearchKeydown($event)"
+    />
+    <kbd
+      class="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border border-slate-600 px-1 text-xs text-slate-500"
+      aria-hidden="true"
+    >/</kbd>
+  </label>
+
+  <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by attribute">
+    @for (attr of attributes; track attr.value) {
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1 text-sm transition"
+        [class.bg-sky-600]="attribute() === attr.value"
+        [class.text-white]="attribute() === attr.value"
+        [class.bg-slate-800]="attribute() !== attr.value"
+        [class.text-slate-300]="attribute() !== attr.value"
+        [attr.aria-pressed]="attribute() === attr.value"
+        (click)="toggleAttribute(attr.value)"
+      >
+        {{ attr.label }}
+      </button>
+    }
+  </div>
+</div>
