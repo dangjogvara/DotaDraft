@@ -49,16 +49,32 @@ public class HeroIngestionServiceTests
     }
 
     [Fact]
-    public async Task SeedHeroes_SkipsExistingHeroes()
+    public async Task SeedHeroes_UpdatesExistingHeroes()
     {
         AddHeroes(1);
-        _client.Heroes.AddRange([HeroDto(1), HeroDto(2)]);
+        _client.Heroes.AddRange([HeroDto(1, "/new.png") with { LocalizedName = "Renamed" }, HeroDto(2)]);
 
         var result = await CreateService().SeedHeroesAsync();
 
         Assert.True(result.Succeeded);
-        Assert.Equal(1, result.Saved);
+        Assert.Equal(2, result.Saved);
+        var hero = await _db.Heroes.AsNoTracking().SingleAsync(h => h.Id == 1);
+        Assert.Equal("Renamed", hero.LocalizedName);
+        Assert.Equal("https://cdn.test/new.png", hero.ImgUrl);
         Assert.Equal(2, await _db.Heroes.CountAsync());
+    }
+
+    [Fact]
+    public async Task SeedHeroes_ReseedWithUnchangedData_WritesNothing()
+    {
+        _client.Heroes.AddRange([HeroDto(1, "/1.png"), HeroDto(2)]);
+        await CreateService().SeedHeroesAsync();
+        _db.ChangeTracker.Clear();
+
+        var result = await CreateService().SeedHeroesAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(0, result.Saved);
     }
 
     [Fact]
@@ -105,18 +121,37 @@ public class HeroIngestionServiceTests
     }
 
     [Fact]
-    public async Task SeedMatchups_SkipsExistingPairs()
+    public async Task SeedMatchups_UpdatesExistingPairs()
     {
         AddHeroes(1, 2);
         _db.HeroMatchups.Add(new HeroMatchup { HeroId = 1, AgainstHeroId = 2, GamesPlayed = 10, Wins = 5, Advantage = 50m });
         await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
         _client.Matchups[1] = [new(2, 200, 110)];
 
         var result = await CreateService().SeedMatchupsAsync();
 
         Assert.True(result.Succeeded);
+        Assert.Equal(1, result.Saved);
+        var matchup = await _db.HeroMatchups.AsNoTracking().SingleAsync();
+        Assert.Equal(200, matchup.GamesPlayed);
+        Assert.Equal(110, matchup.Wins);
+        Assert.Equal(55.00m, matchup.Advantage);
+    }
+
+    [Fact]
+    public async Task SeedMatchups_ReseedWithUnchangedData_WritesNothing()
+    {
+        AddHeroes(1, 2);
+        _client.Matchups[1] = [new(2, 200, 110)];
+        _client.Matchups[2] = [new(1, 200, 90)];
+        await CreateService().SeedMatchupsAsync();
+
+        var result = await CreateService().SeedMatchupsAsync();
+
+        Assert.True(result.Succeeded);
         Assert.Equal(0, result.Saved);
-        Assert.Equal(10, (await _db.HeroMatchups.SingleAsync()).GamesPlayed);
+        Assert.Equal(2, await _db.HeroMatchups.CountAsync());
     }
 
     [Fact]
