@@ -1,0 +1,16 @@
+<main class="min-h-screen bg-slate-950 p-8 text-slate-100">
+  <h1 class="text-3xl font-bold tracking-tight">DotaDraft</h1>
+  <p class="mt-2 text-slate-400">Counter-pick suggestions for Dota 2 drafts.</p>
+
+  <p class="mt-6" data-testid="api-status">
+    @if (loadFailed()) {
+      <span class="text-red-400">Could not reach the API. Is DotaDraft.Api running?</span>
+    } @else if (heroCount() === null) {
+      <span class="text-slate-400">Loading heroes…</span>
+    } @else {
+      <span class="text-emerald-400">Loaded {{ heroCount() }} heroes from the API.</span>
+    }
+  </p>
+
+  <router-outlet />
+</main>
