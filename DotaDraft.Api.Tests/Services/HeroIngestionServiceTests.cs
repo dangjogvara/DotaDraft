@@ -181,7 +181,8 @@ public class HeroIngestionServiceTests
         await CreateService(delayMs).SeedMatchupsAsync();
         stopwatch.Stop();
 
-        // One delay between each of the three requests
-        Assert.True(stopwatch.ElapsedMilliseconds >= 2 * delayMs, $"Elapsed {stopwatch.ElapsedMilliseconds} ms");
+        // One delay between each of the three requests. Allow some slack, since timers can fire
+        // a little early; without the delays the run takes ~1 ms
+        Assert.True(stopwatch.ElapsedMilliseconds >= 2 * delayMs - 20, $"Elapsed {stopwatch.ElapsedMilliseconds} ms");
     }
 }

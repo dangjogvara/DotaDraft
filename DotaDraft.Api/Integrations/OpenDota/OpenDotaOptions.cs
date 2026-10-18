@@ -6,6 +6,9 @@ public class OpenDotaOptions
 
     public string BaseUrl { get; set; } = "https://api.opendota.com/";
 
+    /// <summary>Optional key for higher rate limits. Keep it in user-secrets or the environment, not appsettings.</summary>
+    public string? ApiKey { get; set; }
+
     public string SteamCdnBaseUrl { get; set; } = "https://cdn.cloudflare.steamstatic.com";
 
     /// <summary>Delay between per-hero matchup requests, used to stay under OpenDota's rate limit (60/minute).</summary>
