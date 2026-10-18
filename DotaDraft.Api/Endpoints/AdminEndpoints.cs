@@ -12,15 +12,15 @@ public static class AdminEndpoints
         adminApi.MapPost("/seed-matchups", SeedMatchups);
     }
 
-    private static async Task<IResult> SeedHeroes(OpenDotaService service, CancellationToken ct)
+    private static async Task<IResult> SeedHeroes(HeroIngestionService ingestion, CancellationToken ct)
     {
-        var result = await service.SeedHeroesAsync(ct);
+        var result = await ingestion.SeedHeroesAsync(ct);
         return ToResult(result, $"Seeded {result.Saved} heroes.");
     }
 
-    private static async Task<IResult> SeedMatchups(OpenDotaService seeder, CancellationToken ct)
+    private static async Task<IResult> SeedMatchups(HeroIngestionService ingestion, CancellationToken ct)
     {
-        var result = await seeder.SeedMatchupsAsync(ct);
+        var result = await ingestion.SeedMatchupsAsync(ct);
         return ToResult(result, $"Seeded {result.Saved} matchup records.");
     }
 

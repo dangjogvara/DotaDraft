@@ -1,5 +1,6 @@
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Endpoints;
+using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -15,12 +16,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.Configure<OpenDotaOptions>(
     builder.Configuration.GetSection(OpenDotaOptions.SectionName));
 
-builder.Services.AddHttpClient<OpenDotaService>((sp, client) =>
+builder.Services.AddHttpClient<IOpenDotaClient, OpenDotaClient>((sp, client) =>
 {
     var options = sp.GetRequiredService<IOptions<OpenDotaOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl);
     client.DefaultRequestHeaders.Add("User-Agent", "DotaDraftApp/1.0");
 });
+
+builder.Services.AddScoped<HeroIngestionService>();
 
 var app = builder.Build();
 
