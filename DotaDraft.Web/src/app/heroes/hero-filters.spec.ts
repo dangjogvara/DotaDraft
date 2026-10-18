@@ -67,4 +67,14 @@ describe('HeroFilters', () => {
     button('Agility').click();
     expect(filters.attribute()).toBeNull();
   });
+
+  it('swaps state and hover colours while keeping the static classes', () => {
+    filters.attribute.set('str');
+    fixture.detectChanges();
+
+    expect(button('Strength').className).toContain('rounded-md');
+    expect(button('Strength').classList).toContain('hover:bg-sky-500');
+    expect(button('Agility').classList).toContain('hover:bg-slate-700');
+    expect(button('Agility').classList).not.toContain('bg-sky-600');
+  });
 });

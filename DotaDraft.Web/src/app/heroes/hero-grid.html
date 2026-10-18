@@ -4,14 +4,14 @@
     <li>
       <button
         type="button"
-        class="group relative w-full overflow-hidden rounded-md bg-slate-800 ring-2 ring-transparent transition enabled:hover:ring-slate-400 focus-visible:ring-sky-400 focus-visible:outline-none disabled:cursor-not-allowed"
+        class="group relative w-full overflow-hidden rounded-md bg-slate-800 ring-2 ring-transparent transition enabled:hover:-translate-y-0.5 enabled:hover:bg-slate-700 enabled:hover:shadow-lg enabled:hover:shadow-black/40 enabled:hover:ring-sky-400/80 focus-visible:ring-sky-400 focus-visible:outline-none disabled:cursor-not-allowed"
         [class.opacity-40]="picked || full()"
         [disabled]="picked || full()"
         [attr.title]="picked ? hero.localizedName + ' is already in the lineup' : full() ? 'The lineup is full' : null"
         (click)="heroSelected.emit(hero)"
       >
         @if (hero.imgUrl) {
-          <img [src]="hero.imgUrl" alt="" class="aspect-video w-full object-cover" loading="lazy" />
+          <img [src]="hero.imgUrl" alt="" class="aspect-video w-full object-cover transition group-enabled:group-hover:brightness-110" loading="lazy" />
         } @else {
           <div class="aspect-video w-full bg-slate-700"></div>
         }
