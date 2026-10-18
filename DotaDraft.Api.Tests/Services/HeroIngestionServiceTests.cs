@@ -37,7 +37,8 @@ public class HeroIngestionServiceTests
     [Fact]
     public async Task SeedHeroes_SavesHeroesAndPrefixesImageWithCdn()
     {
-        _client.Heroes.AddRange([HeroDto(1, "/apps/dota2/images/1.png"), HeroDto(2)]);
+        // OpenDota sends image paths with a trailing empty query string
+        _client.Heroes.AddRange([HeroDto(1, "/apps/dota2/images/1.png?"), HeroDto(2)]);
 
         var result = await CreateService().SeedHeroesAsync();
 
