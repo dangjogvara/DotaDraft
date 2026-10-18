@@ -20,6 +20,11 @@ builder.Services.Configure<OpenDotaOptions>(
 
 builder.Services.AddOpenDotaClient();
 
+builder.Services.AddOptions<MatchupOptions>()
+    .Bind(builder.Configuration.GetSection(MatchupOptions.SectionName))
+    .Validate(o => o.WindowSize > 0 && o.WindowCount > 0, "Matchups:WindowSize and Matchups:WindowCount must be positive.")
+    .ValidateOnStart();
+
 builder.Services.Configure<CounterOptions>(
     builder.Configuration.GetSection(CounterOptions.SectionName));
 

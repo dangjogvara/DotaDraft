@@ -77,7 +77,7 @@ ADMIN_KEY="$(dotnet user-secrets list --project DotaDraft.Api | sed -n 's/^Admin
 # 1. Heroes: about a second
 curl -X POST -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-heroes
 
-# 2. Matchups: queued as a background job (202 Accepted), takes about 3 minutes
+# 2. Matchups: queued as a background job (202 Accepted), takes about 1.5 minutes
 curl -X POST -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups
 
 # Poll until "state" is Succeeded or Failed
@@ -85,7 +85,10 @@ curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/
 ```
 
 - **Re-seeding is safe.** Existing rows are updated with fresh numbers and new ones are inserted, so run it again after a Dota patch.
-- **Matchup seeding makes one OpenDota request per hero**, about 1 second apart to stay under the free tier's 60 requests/minute. Rate-limit responses (429) are retried with backoff. If some heroes still fail, the job ends as `Failed` and lists them in `failedHeroIds`. Re-run it later to fill them in.
+- **Matchups come from public ranked matches** by default (`Matchups:Source` = `Public`). DotaDraft runs SQL through OpenDota's [`/explorer`](https://docs.opendota.com/#tag/explorer) endpoint over its `public_matches` table: ranked All Pick games, counting every hero against every hero on the other team. The explorer stops queries after about 15 seconds, so the seed walks back from the newest match in windows of `WindowSize` match IDs (default 15 × 200,000, roughly the last 1.5 days) and adds the windows together. That's about 16 requests and a median of roughly 1,900 games per matchup.
+- **A public seed replaces the whole table.** Pairs that no longer appear are removed. If fewer than half the windows can be fetched, nothing is written and the existing data is kept. If only some fail, the rest is saved and the job ends as `Failed` with a `failedWindows` count.
+- **`/explorer` isn't a stable, documented API.** If OpenDota changes its schema, the queries fail with an `err` message in the logs. Set `Matchups:Source` to `Pro` to fall back to `/heroes/{id}/matchups`, which uses a much smaller set of high-level matches (about 45 games per matchup) and makes one request per hero, about 3 minutes in total. If some heroes fail there, the job lists them in `failedHeroIds`.
+- Requests are spaced about 1 second apart to stay under the free tier's 60 requests/minute, and rate-limit responses (429) are retried with backoff.
 - **Job status is kept in memory.** It resets when the API restarts, and only one run can be queued or running at a time (a second request gets `409 Conflict`).
 
 ## API
@@ -125,7 +128,7 @@ advantage = raw edge × trust
 
 **Against a lineup** (`/api/counters`), each candidate's per-enemy advantages are added up into `totalAdvantage`, so a hero that counters several enemies ranks above one that strongly counters only one of them. An enemy without matchup data counts as 0. Heroes already in the lineup are never suggested, and `matchups` gives the per-enemy breakdown so you can see what each suggestion is based on. Invalid lineups (none, more than 5, duplicates, unknown IDs) return `400`.
 
-OpenDota's matchup data appears to come from high-level/pro matches, so samples are small (a median of about 45 games per matchup). Summing over a lineup can lift a hero with several small-sample edges to the top, so check the game counts in the breakdown.
+With public match data most matchups have well over 1,000 games, so `trust` is close to 1 and `k` mainly dampens rarely picked heroes. With the `Pro` source, samples are small (a median of about 45 games), and summing over a lineup can lift a hero with several small-sample edges to the top, so check the game counts in the breakdown.
 
 ## Configuration
 
@@ -136,10 +139,14 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 | `ConnectionStrings:DefaultConnection` | none (required) | PostgreSQL connection string |
 | `Admin:ApiKey` | none | Key for the admin endpoints; they are disabled when unset |
 | `OpenDota:ApiKey` | none | Optional OpenDota API key, sent as a bearer token |
-| `OpenDota:MatchupRequestDelayMs` | `1100` | Delay between per-hero matchup requests |
+| `OpenDota:MatchupRequestDelayMs` | `1100` | Delay between matchup requests (per window, or per hero with `Pro`) |
 | `OpenDota:MaxRetryAttempts` | `3` | Retries after a transient failure (429, 5xx, network) |
 | `OpenDota:RetryBaseDelayMs` | `5000` | First retry delay; doubles on each retry |
 | `OpenDota:RetryMaxDelayMs` | `60000` | Longest retry delay; a longer `Retry-After` is not retried |
+| `Matchups:Source` | `Public` | `Public` (ranked public matches via `/explorer`) or `Pro` (`/heroes/{id}/matchups`) |
+| `Matchups:WindowSize` | `200000` | Match IDs per explorer query; much larger windows hit the explorer's timeout |
+| `Matchups:WindowCount` | `15` | Windows per seed, walking back from the newest match |
+| `Matchups:MinAvgRankTier` | none | Only count matches with at least this average rank (10–15 Herald … 80 Immortal); unset includes all ranks |
 | `Counters:PriorGames` | `30` | `k` in the counter ranking |
 | `Cors:AllowedOrigins` | `http://localhost:4200` in Development, none otherwise | Origins allowed to call the API from a browser |
 

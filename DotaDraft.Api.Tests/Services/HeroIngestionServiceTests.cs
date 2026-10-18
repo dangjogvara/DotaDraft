@@ -15,11 +15,19 @@ public class HeroIngestionServiceTests
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
 
-    private HeroIngestionService CreateService(int matchupRequestDelayMs = 0) => new(
+    private HeroIngestionService CreateService(
+        int matchupRequestDelayMs = 0, MatchupSource source = MatchupSource.Pro, int windowCount = 3, int? minAvgRankTier = null) => new(
         _client,
         _db,
         NullLogger<HeroIngestionService>.Instance,
-        Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test", MatchupRequestDelayMs = matchupRequestDelayMs }));
+        Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test", MatchupRequestDelayMs = matchupRequestDelayMs }),
+        Options.Create(new MatchupOptions
+        {
+            Source = source, WindowSize = 100, WindowCount = windowCount, MinAvgRankTier = minAvgRankTier
+        }));
+
+    private HeroIngestionService CreatePublicService(int windowCount = 3, int? minAvgRankTier = null) =>
+        CreateService(source: MatchupSource.Public, windowCount: windowCount, minAvgRankTier: minAvgRankTier);
 
     private static OpenDotaHeroDto HeroDto(int id, string? img = null) =>
         new(id, $"npc_dota_hero_{id}", $"Hero {id}", "str", ["Carry"], img);
@@ -105,7 +113,7 @@ public class HeroIngestionServiceTests
     }
 
     [Fact]
-    public async Task SeedMatchups_SavesWinRate_AndSkipsUnknownOpponents()
+    public async Task SeedProMatchups_SavesWinRate_AndSkipsUnknownOpponents()
     {
         AddHeroes(1, 2);
         _client.Matchups[1] = [new(2, 200, 110), new(99, 50, 25)];
@@ -122,7 +130,7 @@ public class HeroIngestionServiceTests
     }
 
     [Fact]
-    public async Task SeedMatchups_UpdatesExistingPairs()
+    public async Task SeedProMatchups_UpdatesExistingPairs()
     {
         AddHeroes(1, 2);
         _db.HeroMatchups.Add(new HeroMatchup { HeroId = 1, AgainstHeroId = 2, GamesPlayed = 10, Wins = 5, WinRate = 50m });
@@ -141,7 +149,7 @@ public class HeroIngestionServiceTests
     }
 
     [Fact]
-    public async Task SeedMatchups_ReseedWithUnchangedData_WritesNothing()
+    public async Task SeedProMatchups_ReseedWithUnchangedData_WritesNothing()
     {
         AddHeroes(1, 2);
         _client.Matchups[1] = [new(2, 200, 110)];
@@ -156,7 +164,7 @@ public class HeroIngestionServiceTests
     }
 
     [Fact]
-    public async Task SeedMatchups_ContinuesPastUpstreamFailures_AndReportsFailedHeroes()
+    public async Task SeedProMatchups_ContinuesPastUpstreamFailures_AndReportsFailedHeroes()
     {
         AddHeroes(1, 2, 3);
         _client.FailingHeroIds.Add(2);
@@ -171,7 +179,7 @@ public class HeroIngestionServiceTests
     }
 
     [Fact]
-    public async Task SeedMatchups_KeepsRateLimitDelay_AfterFailedAndEmptyResponses()
+    public async Task SeedProMatchups_KeepsRateLimitDelay_AfterFailedAndEmptyResponses()
     {
         // Hero 1 fails, hero 2 returns nothing: both used to skip the delay before the next request
         AddHeroes(1, 2, 3);
@@ -185,5 +193,125 @@ public class HeroIngestionServiceTests
         // One delay between each of the three requests. Allow some slack, since timers can fire
         // a little early; without the delays the run takes ~1 ms
         Assert.True(stopwatch.ElapsedMilliseconds >= 2 * delayMs - 20, $"Elapsed {stopwatch.ElapsedMilliseconds} ms");
+    }
+
+    private static OpenDotaPublicMatchupDto Pair(int heroId, int againstHeroId, int games, int wins) =>
+        new(heroId, againstHeroId, games, wins);
+
+    private void AddMatchup(int heroId, int againstHeroId, int games, int wins)
+    {
+        _db.HeroMatchups.Add(new HeroMatchup
+        {
+            HeroId = heroId, AgainstHeroId = againstHeroId, GamesPlayed = games, Wins = wins, WinRate = 50m
+        });
+        _db.SaveChanges();
+        _db.ChangeTracker.Clear();
+    }
+
+    [Fact]
+    public async Task SeedPublicMatchups_SumsWindowsBackFromLatestMatch_AndSkipsUnknownHeroes()
+    {
+        AddHeroes(1, 2);
+        _client.LatestPublicMatchId = 1000;
+        _client.PublicMatchups[1000] = [Pair(1, 2, 100, 60), Pair(2, 1, 100, 40), Pair(1, 99, 50, 25)];
+        _client.PublicMatchups[900] = [Pair(1, 2, 100, 50), Pair(2, 1, 100, 50)];
+
+        var result = await CreatePublicService().SeedMatchupsAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, result.Saved);
+        Assert.Equal([(901L, 1000L, (int?)null), (801, 900, null), (701, 800, null)], _client.PublicMatchupRequests);
+        var matchup = await _db.HeroMatchups.SingleAsync(m => m.HeroId == 1);
+        Assert.Equal(2, matchup.AgainstHeroId);
+        Assert.Equal(200, matchup.GamesPlayed);
+        Assert.Equal(110, matchup.Wins);
+        Assert.Equal(55.00m, matchup.WinRate);
+        Assert.Equal(2, await _db.HeroMatchups.CountAsync());
+    }
+
+    [Fact]
+    public async Task SeedPublicMatchups_PassesRankFilter()
+    {
+        AddHeroes(1, 2);
+        _client.PublicMatchups[_client.LatestPublicMatchId] = [Pair(1, 2, 10, 5)];
+
+        await CreatePublicService(windowCount: 1, minAvgRankTier: 70).SeedMatchupsAsync();
+
+        Assert.Equal(70, Assert.Single(_client.PublicMatchupRequests).MinAvgRankTier);
+    }
+
+    [Fact]
+    public async Task SeedPublicMatchups_ReplacesExistingRows_AndRemovesPairsNotSeen()
+    {
+        AddHeroes(1, 2, 3);
+        AddMatchup(1, 2, 10, 5);
+        AddMatchup(1, 3, 10, 5);
+        _client.PublicMatchups[_client.LatestPublicMatchId] = [Pair(1, 2, 1000, 600)];
+
+        var result = await CreatePublicService(windowCount: 1).SeedMatchupsAsync();
+
+        Assert.True(result.Succeeded);
+        var matchup = await _db.HeroMatchups.AsNoTracking().SingleAsync();
+        Assert.Equal((1, 2, 1000, 600, 60.00m),
+            (matchup.HeroId, matchup.AgainstHeroId, matchup.GamesPlayed, matchup.Wins, matchup.WinRate));
+    }
+
+    [Fact]
+    public async Task SeedPublicMatchups_ReseedWithUnchangedData_WritesNothing()
+    {
+        AddHeroes(1, 2);
+        _client.PublicMatchups[_client.LatestPublicMatchId] = [Pair(1, 2, 10, 5), Pair(2, 1, 10, 5)];
+        await CreatePublicService(windowCount: 1).SeedMatchupsAsync();
+
+        var result = await CreatePublicService(windowCount: 1).SeedMatchupsAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(0, result.Saved);
+        Assert.Equal(2, await _db.HeroMatchups.CountAsync());
+    }
+
+    [Fact]
+    public async Task SeedPublicMatchups_SavesAndReportsFailure_WhenSomeWindowsFail()
+    {
+        AddHeroes(1, 2);
+        _client.LatestPublicMatchId = 1000;
+        _client.FailingWindows.Add(900);
+        _client.PublicMatchups[1000] = [Pair(1, 2, 100, 60)];
+
+        var result = await CreatePublicService().SeedMatchupsAsync();
+
+        Assert.Equal(SeedFailure.Upstream, result.Failure);
+        Assert.Equal(1, result.FailedWindows);
+        Assert.Equal(1, result.Saved);
+        Assert.Equal(100, (await _db.HeroMatchups.SingleAsync()).GamesPlayed);
+    }
+
+    [Fact]
+    public async Task SeedPublicMatchups_KeepsExistingData_WhenMostWindowsFail()
+    {
+        AddHeroes(1, 2);
+        AddMatchup(1, 2, 10, 5);
+        _client.LatestPublicMatchId = 1000;
+        _client.FailingWindows.UnionWith([1000, 900]);
+        _client.PublicMatchups[800] = [Pair(1, 2, 100, 60)];
+
+        var result = await CreatePublicService().SeedMatchupsAsync();
+
+        Assert.Equal(SeedFailure.Upstream, result.Failure);
+        Assert.Equal(2, result.FailedWindows);
+        Assert.Equal(0, result.Saved);
+        Assert.Equal(10, (await _db.HeroMatchups.AsNoTracking().SingleAsync()).GamesPlayed);
+    }
+
+    [Fact]
+    public async Task SeedPublicMatchups_ReturnsUpstreamFailure_WhenLatestMatchCannotBeFound()
+    {
+        AddHeroes(1, 2);
+        _client.FailLatestPublicMatchId = true;
+
+        var result = await CreatePublicService().SeedMatchupsAsync();
+
+        Assert.Equal(SeedFailure.Upstream, result.Failure);
+        Assert.Empty(_client.PublicMatchupRequests);
     }
 }

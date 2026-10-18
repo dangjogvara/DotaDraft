@@ -131,6 +131,63 @@ public class OpenDotaClientTests
         Assert.Null(_handler.LastRequest!.Headers.Authorization);
     }
 
+    [Fact]
+    public async Task GetPublicMatchups_QueriesExplorerForTheWindow_AndParsesRows()
+    {
+        _handler.Responses.Enqueue(Json("""
+            {"command":"SELECT","rowCount":1,"rows":[{"hero_id":1,"against_hero_id":2,"games":174,"wins":89}]}
+            """));
+
+        var rows = await CreateClient().GetPublicMatchupsAsync(901, 1000, minAvgRankTier: 70);
+
+        Assert.Equal(new OpenDotaPublicMatchupDto(1, 2, 174, 89), Assert.Single(rows));
+        var uri = _handler.LastRequest!.RequestUri!;
+        Assert.Equal("/api/explorer", uri.AbsolutePath);
+        var sql = Uri.UnescapeDataString(uri.Query);
+        Assert.Contains("match_id BETWEEN 901 AND 1000", sql);
+        Assert.Contains("avg_rank_tier >= 70", sql);
+    }
+
+    [Fact]
+    public async Task GetPublicMatchups_OmitsRankFilter_WhenUnset()
+    {
+        _handler.Responses.Enqueue(Json("""{"rows":[]}"""));
+
+        await CreateClient().GetPublicMatchupsAsync(1, 100);
+
+        Assert.DoesNotContain("avg_rank_tier", Uri.UnescapeDataString(_handler.LastRequest!.RequestUri!.Query));
+    }
+
+    [Fact]
+    public async Task ExplorerError_ThrowsWithItsMessage_WithoutRetrying()
+    {
+        // A statement timeout comes back as a 400; retrying the same query would only time out again
+        _handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("""{"err":"error: canceling statement due to statement timeout"}""")
+        });
+
+        var ex = await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient().GetPublicMatchupsAsync(1, 100));
+        Assert.Contains("statement timeout", ex.InnerException!.Message);
+        Assert.Equal(1, _handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetLatestPublicMatchId_ReturnsMaxMatchId()
+    {
+        _handler.Responses.Enqueue(Json("""{"rows":[{"match_id":9051773603}]}"""));
+
+        Assert.Equal(9051773603, await CreateClient().GetLatestPublicMatchIdAsync());
+    }
+
+    [Fact]
+    public async Task GetLatestPublicMatchId_Throws_WhenTableIsEmpty()
+    {
+        _handler.Responses.Enqueue(Json("""{"rows":[{"match_id":null}]}"""));
+
+        await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient().GetLatestPublicMatchIdAsync());
+    }
+
     private class StubHandler : HttpMessageHandler
     {
         public Queue<HttpResponseMessage> Responses { get; } = new();

@@ -33,14 +33,14 @@ npx ng build
 
 - Add tests for behaviour changes, and check that a new test fails against the old code.
 - For changes to endpoints, seeding or config, also run the API against the local Postgres and exercise the change with curl.
-- A full matchup seed takes about 3 minutes and uses OpenDota quota, so only run one when the change needs it.
+- A full matchup seed takes about 1.5 minutes (about 16 OpenDota requests; 3 minutes and 128 requests with `Matchups:Source=Pro`) and replaces the whole matchup table, so only run one when the change needs it.
 
 ## Code conventions
 
 - `Endpoints/`: one static class per area, registered from `Program.cs`. Responses use `TypedResults`. Admin errors use ProblemDetails; hero endpoints return `{ message }` for 404s.
 - `Dtos/` holds this API's response contracts. Return DTOs, never EF entities.
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
-- `Services/`: `HeroIngestionService` (scoped seeding with upserts), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding), `CounterRanking`.
+- `Services/`: `HeroIngestionService` (scoped seeding: per-hero upserts for `Pro`, a windowed whole-table replace for `Public`), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding), `CounterRanking`.
 - Settings are options classes with a `SectionName` and documented defaults. Keep `appsettings.json` and the README's configuration table in sync.
 - Frontend: standalone components, signals, and Tailwind utility classes in templates. API calls go through `HeroApiService` using `environment.apiBaseUrl`. The interfaces in `hero.models.ts` mirror the C# DTOs, so change both together.
 - Tests:
@@ -62,5 +62,5 @@ npx ng build
 
 - `docker exec` needs `-i` to receive SQL on stdin (heredocs). Without it, psql silently runs nothing.
 - To stop a background API, use `kill -TERM $(pgrep -x DotaDraft.Api)`. To stop `ng serve`, use `kill -TERM $(lsof -ti tcp:4200)`. Never use `pkill -f` or `pgrep -f` with a pattern that appears in your own command, because it matches and kills the shell running it. SIGINT is ignored by processes started in the background.
-- OpenDota's free tier allows 60 requests/minute and roughly 3,000/day, and still sends occasional bursts of 429s. Its OpenAPI spec is at `https://api.opendota.com/api`. Pro-match samples are small (a median of about 45 games per matchup).
+- OpenDota's free tier allows 60 requests/minute and roughly 3,000/day, and still sends occasional bursts of 429s. Its OpenAPI spec is at `https://api.opendota.com/api`. Public matchups come from SQL sent to `/explorer`: filter `public_matches` by `match_id` range (a `start_time` filter times out), and keep each query under its ~15s statement timeout. The `Pro` source has small samples (a median of about 45 games per matchup).
 - Before applying a migration to the local DB, check `__EFMigrationsHistory`. The local DB once had an orphan migration that was never committed.

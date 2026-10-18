@@ -21,6 +21,7 @@ public class MatchupSeedWorkerTests : IAsyncLifetime
             .AddLogging()
             .AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(dbName))
             .Configure<OpenDotaOptions>(o => o.MatchupRequestDelayMs = 0)
+            .Configure<MatchupOptions>(o => o.Source = MatchupSource.Pro)
             .AddSingleton<IOpenDotaClient>(_client)
             .AddScoped<HeroIngestionService>()
             .AddSingleton<MatchupSeedJob>()
