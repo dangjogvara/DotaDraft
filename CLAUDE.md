@@ -41,7 +41,8 @@ npx ng build
 - `Dtos/` holds this API's response contracts. Return DTOs, never EF entities.
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
 - `Services/`: `HeroIngestionService` (scoped seeding: per-hero upserts for `Pro`, a windowed whole-table replace for `Public`), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding), `CounterRanking`.
-- Settings are options classes with a `SectionName` and documented defaults. Keep `appsettings.json` and the README's configuration table in sync.
+- Request validation uses data annotations on handler parameters (`AddValidation()`); only checks that need the database stay in the handler.
+- Settings are options classes with a `SectionName`, documented defaults and data-annotation ranges, registered with `ValidateDataAnnotations().ValidateOnStart()`. Keep `appsettings.json` and the README's configuration table in sync.
 - Frontend: standalone components, signals, and Tailwind utility classes in templates. API calls go through `HeroApiService` using `environment.apiBaseUrl`. The interfaces in `hero.models.ts` mirror the C# DTOs, so change both together.
 - Tests:
   - Frontend: `provideHttpClientTesting()` with `HttpTestingController`.

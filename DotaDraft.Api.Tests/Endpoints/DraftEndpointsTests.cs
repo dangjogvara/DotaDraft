@@ -97,9 +97,8 @@ public class DraftEndpointsTests : IAsyncLifetime
 
     [Theory]
     [InlineData(1, 1)]
-    [InlineData(0, 1)]
-    [InlineData(100, 3)]
-    public async Task ClampsLimit(int limit, int expectedCount)
+    [InlineData(20, 3)]
+    public async Task AppliesLimit(int limit, int expectedCount)
     {
         var counters = await GetCounters($"?against=1&against=2&limit={limit}");
 
@@ -107,8 +106,20 @@ public class DraftEndpointsTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(21)]
+    public async Task RejectsLimitOutOfRange(int limit)
+    {
+        var response = await Get($"?against=1&limit={limit}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Contains("between 1 and 20", Assert.Single(problem!.Errors["limit"]));
+    }
+
+    [Theory]
     [InlineData("", "Pass 1 to 5")]
-    [InlineData("?against=1&against=2&against=3&against=4&against=5&against=6", "at most 5")]
+    [InlineData("?against=1&against=2&against=3&against=4&against=5&against=6", "Pass 1 to 5")]
     [InlineData("?against=1&against=1", "distinct")]
     [InlineData("?against=1&against=999", "Unknown hero IDs: 999")]
     public async Task RejectsInvalidLineups(string query, string expectedError)

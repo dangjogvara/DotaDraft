@@ -13,24 +13,33 @@ builder.Services.AddOpenApi();
 // (e.g. 401, unmatched routes) via UseStatusCodePages, and unhandled exceptions via UseExceptionHandler
 builder.Services.AddProblemDetails();
 
+// Validates endpoint parameters with data annotations (e.g. [Range]) and returns a 400 ValidationProblem
+builder.Services.AddValidation();
+
 // The connection string lives in user-secrets locally (see .env.example), so fail clearly if it's missing
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException(
             "ConnectionStrings:DefaultConnection is not configured. Set it with dotnet user-secrets.")));
 
-builder.Services.Configure<OpenDotaOptions>(
-    builder.Configuration.GetSection(OpenDotaOptions.SectionName));
+// Options are validated with their data annotations at startup, so bad configuration fails fast
+// instead of on the first request or seed
+builder.Services.AddOptions<OpenDotaOptions>()
+    .Bind(builder.Configuration.GetSection(OpenDotaOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services.AddOpenDotaClient();
 
 builder.Services.AddOptions<MatchupOptions>()
     .Bind(builder.Configuration.GetSection(MatchupOptions.SectionName))
-    .Validate(o => o.WindowSize > 0 && o.WindowCount > 0, "Matchups:WindowSize and Matchups:WindowCount must be positive.")
+    .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services.Configure<CounterOptions>(
-    builder.Configuration.GetSection(CounterOptions.SectionName));
+builder.Services.AddOptions<CounterOptions>()
+    .Bind(builder.Configuration.GetSection(CounterOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 // The Angular client runs on another origin (its dev server, or wherever it's deployed).
 // Origins come from configuration; with none configured, no cross-origin requests are allowed.

@@ -128,13 +128,13 @@ advantage = raw edge × trust
 - **`trust`** stops lucky small samples (say 5 wins in 6 games) from topping the list. With `k = 30`, a matchup with 30 games keeps half its raw edge, and one with 300 games keeps about 90%.
 - **`k`** is the `Counters:PriorGames` setting (default 30). Raise it to trust small samples less.
 
-**Against a lineup** (`/api/counters`), each candidate's per-enemy advantages are added up into `totalAdvantage`, so a hero that counters several enemies ranks above one that strongly counters only one of them. An enemy without matchup data counts as 0. Heroes already in the lineup are never suggested, and `matchups` gives the per-enemy breakdown so you can see what each suggestion is based on. Invalid lineups (none, more than 5, duplicates, unknown IDs) return `400`.
+**Against a lineup** (`/api/counters`), each candidate's per-enemy advantages are added up into `totalAdvantage`, so a hero that counters several enemies ranks above one that strongly counters only one of them. An enemy without matchup data counts as 0. Heroes already in the lineup are never suggested, and `matchups` gives the per-enemy breakdown so you can see what each suggestion is based on. Invalid lineups (none, more than 5, duplicates, unknown IDs) and a `limit` outside 1–20 return `400`.
 
 With public match data most matchups have well over 1,000 games, so `trust` is close to 1 and `k` mainly dampens rarely picked heroes. With the `Pro` source, samples are small (a median of about 45 games), and summing over a lineup can lift a hero with several small-sample edges to the top, so check the game counts in the breakdown.
 
 ## Configuration
 
-Settings come from `appsettings.json`, then `appsettings.Development.json`, then user-secrets (Development only), then environment variables. In production, set secrets as environment variables, using `__` in place of `:` (for example `Admin__ApiKey`).
+Settings come from `appsettings.json`, then `appsettings.Development.json`, then user-secrets (Development only), then environment variables. They are validated at startup, so an invalid value (for example a negative `Counters:PriorGames`) stops the API with an `OptionsValidationException` naming the setting. In production, set secrets as environment variables, using `__` in place of `:` (for example `Admin__ApiKey`).
 
 | Setting | Default | Description |
 |---|---|---|

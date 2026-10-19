@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Dtos;
 using DotaDraft.Api.Services;
@@ -31,10 +32,10 @@ public static class HeroEndpoints
         int id,
         AppDbContext db,
         IOptions<CounterOptions> options,
-        int limit = 5,
+        [Range(1, DraftEndpoints.MaxLimit)] int limit = 5,
         CancellationToken ct = default)
     {
-        // 1. Verify the subject hero exists
+        // Verify the subject hero exists
         var heroExists = await db.Heroes.AnyAsync(h => h.Id == id, ct);
         if (!heroExists)
         {
@@ -44,10 +45,7 @@ public static class HeroEndpoints
                 statusCode: StatusCodes.Status404NotFound);
         }
 
-        // 2. Clamp limit to avoid negative numbers or excessively large queries
-        var clampedLimit = Math.Clamp(limit, 1, 20);
-
-        // 3. Load every hero's results against this hero (at most one row per hero)
+        // Load every hero's results against this hero (at most one row per hero)
         var matchups = await db.HeroMatchups
             .AsNoTracking()
             .Where(m => m.AgainstHeroId == id && m.GamesPlayed > 0)
@@ -63,10 +61,10 @@ public static class HeroEndpoints
             })
             .ToListAsync(ct);
 
-        // 4. Each hero's overall win rate, so general strength isn't mistaken for countering
+        // Each hero's overall win rate, so general strength isn't mistaken for countering
         var baselines = await db.LoadBaselineWinRatesAsync(ct);
 
-        // 5. Rank by sample-adjusted advantage over the baseline
+        // Rank by sample-adjusted advantage over the baseline
         var priorGames = options.Value.PriorGames;
         var counters = matchups
             .Select(m =>
@@ -85,7 +83,7 @@ public static class HeroEndpoints
             })
             .OrderByDescending(c => c.Advantage)
             .ThenByDescending(c => c.GamesPlayed)
-            .Take(clampedLimit)
+            .Take(limit)
             .ToList();
 
         return TypedResults.Ok(counters);
