@@ -9,6 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddOpenApi();
 
+// Every error response is RFC 9457 ProblemDetails: explicit Problem results, empty status codes
+// (e.g. 401, unmatched routes) via UseStatusCodePages, and unhandled exceptions via UseExceptionHandler
+builder.Services.AddProblemDetails();
+
 // The connection string lives in user-secrets locally (see .env.example), so fail clearly if it's missing
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
@@ -46,6 +50,13 @@ builder.Services.AddHostedService<MatchupSeedWorker>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+// In Development the framework's developer exception page handles exceptions, adding their details;
+// elsewhere the handler returns a 500 ProblemDetails without them
+if (!app.Environment.IsDevelopment())
+    app.UseExceptionHandler();
+
+app.UseStatusCodePages();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

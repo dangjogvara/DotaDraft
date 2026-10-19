@@ -38,7 +38,10 @@ public static class HeroEndpoints
         var heroExists = await db.Heroes.AnyAsync(h => h.Id == id, ct);
         if (!heroExists)
         {
-            return TypedResults.NotFound(new { message = $"Hero with ID {id} not found." });
+            return TypedResults.Problem(
+                title: "Hero not found",
+                detail: $"Hero with ID {id} not found.",
+                statusCode: StatusCodes.Status404NotFound);
         }
 
         // 2. Clamp limit to avoid negative numbers or excessively large queries

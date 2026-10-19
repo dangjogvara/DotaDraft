@@ -13,7 +13,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace DotaDraft.Api.Tests;
 
 // Runs the real app in memory, with an in-memory database and a fake OpenDota client
-public class DotaDraftApiFactory(string? adminKey = DotaDraftApiFactory.AdminKey) : WebApplicationFactory<Program>
+public class DotaDraftApiFactory(string? adminKey = DotaDraftApiFactory.AdminKey, string environment = "Development")
+    : WebApplicationFactory<Program>
 {
     public const string AdminKey = "test-admin-key";
 
@@ -25,6 +26,7 @@ public class DotaDraftApiFactory(string? adminKey = DotaDraftApiFactory.AdminKey
     {
         // Empty string overrides any key from user-secrets, so "no key" really means none
         builder.UseSetting(AdminEndpoints.AdminKeyConfigKey, adminKey ?? "");
+        builder.UseEnvironment(environment);
 
         builder.ConfigureTestServices(services =>
         {
