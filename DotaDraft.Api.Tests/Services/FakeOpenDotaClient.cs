@@ -10,6 +10,8 @@ public class FakeOpenDotaClient : IOpenDotaClient
     // Hero IDs whose matchup requests fail as an upstream error
     public HashSet<int> FailingHeroIds { get; } = [];
     public bool FailHeroStats { get; set; }
+    // Thrown as-is, to simulate a bug rather than an upstream failure
+    public Exception? HeroStatsBug { get; set; }
     public int HeroStatsRequests { get; private set; }
 
     public long LatestPublicMatchId { get; set; } = 1_000_000;
@@ -23,6 +25,8 @@ public class FakeOpenDotaClient : IOpenDotaClient
     public Task<IReadOnlyList<OpenDotaHeroDto>> GetHeroStatsAsync(CancellationToken ct = default)
     {
         HeroStatsRequests++;
+        if (HeroStatsBug is not null)
+            throw HeroStatsBug;
         if (FailHeroStats)
             throw new OpenDotaException("Simulated failure.", new HttpRequestException());
         return Task.FromResult<IReadOnlyList<OpenDotaHeroDto>>(Heroes);

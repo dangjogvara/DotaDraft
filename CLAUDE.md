@@ -37,7 +37,7 @@ npx ng build
 
 ## Code conventions
 
-- `Endpoints/`: one static class per area, registered from `Program.cs`. Responses use `TypedResults`. Admin errors use ProblemDetails; hero endpoints return `{ message }` for 404s.
+- `Endpoints/`: one static class per area, registered from `Program.cs`. Responses use `TypedResults`. Every error is ProblemDetails: return `TypedResults.Problem`/`ValidationProblem`; empty status codes and unhandled exceptions are converted by `UseStatusCodePages`/`UseExceptionHandler` (exception details only in Development).
 - `Dtos/` holds this API's response contracts. Return DTOs, never EF entities.
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
 - `Services/`: `HeroIngestionService` (scoped seeding: per-hero upserts for `Pro`, a windowed whole-table replace for `Public`), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding), `CounterRanking`.

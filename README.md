@@ -104,6 +104,8 @@ curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/
 
 Example requests are in [`DotaDraft.Api/DotaDraft.Api.http`](DotaDraft.Api/DotaDraft.Api.http). It reads the admin key from the `DOTADRAFT_ADMIN_KEY` environment variable.
 
+Errors are [ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`) with `status`, `title` and usually `detail`; validation errors add an `errors` object per parameter. Unhandled exceptions return a `500` without exception details outside Development.
+
 Admin endpoints return `401` without a valid key. If `Admin:ApiKey` isn't configured they aren't mapped at all and return `404`, so a missing setting never leaves them open.
 
 ### How counters are ranked
