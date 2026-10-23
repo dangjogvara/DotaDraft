@@ -23,7 +23,8 @@ public class MatchupSeedWorkerTests : IAsyncLifetime
             .Configure<OpenDotaOptions>(o => o.MatchupRequestDelayMs = 0)
             .Configure<MatchupOptions>(o => o.Source = MatchupSource.Pro)
             .AddSingleton<IOpenDotaClient>(_client)
-            .AddScoped<HeroIngestionService>()
+            .AddSingleton(TimeProvider.System)
+            .AddHeroIngestion()
             .AddSingleton<MatchupSeedJob>()
             .AddSingleton<MatchupSeedWorker>()
             .BuildServiceProvider();

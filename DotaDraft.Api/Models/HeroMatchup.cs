@@ -11,4 +11,11 @@ public class HeroMatchup
     public int GamesPlayed { get; set; }
     public int Wins { get; set; }
     public decimal WinRate { get; set; }
+
+    public void SetResults(int gamesPlayed, int wins)
+    {
+        GamesPlayed = gamesPlayed;
+        Wins = wins;
+        WinRate = gamesPlayed > 0 ? Math.Round((decimal)wins / gamesPlayed * 100m, 2) : 0m;
+    }
 }

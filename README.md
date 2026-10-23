@@ -170,7 +170,8 @@ The API tests don't need Docker, the database or any secrets. They use EF Core's
 ```
 DotaDraft.Api/
   Endpoints/               Minimal API endpoints and the admin key filter
-  Services/                Hero/matchup ingestion, the seeding background job, counter ranking
+  Services/                Counter ranking, hero ingestion, the seeding background job
+    MatchupSources/        One class per Matchups:Source (Public, Pro)
   Integrations/OpenDota/   OpenDota HTTP client (with retries), its DTOs and options
   Dtos/                    This API's response contracts
   Models/, Data/           EF Core entities and DbContext

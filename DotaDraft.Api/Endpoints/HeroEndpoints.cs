@@ -3,7 +3,6 @@ using DotaDraft.Api.Data;
 using DotaDraft.Api.Dtos;
 using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Endpoints;
 
@@ -30,14 +29,12 @@ public static class HeroEndpoints
 
     private static async Task<IResult> GetHeroCounters(
         int id,
-        AppDbContext db,
-        IOptions<CounterOptions> options,
+        CounterService counters,
         [Range(1, DraftEndpoints.MaxLimit)] int limit = 5,
         CancellationToken ct = default)
     {
-        // Verify the subject hero exists
-        var heroExists = await db.Heroes.AnyAsync(h => h.Id == id, ct);
-        if (!heroExists)
+        var result = await counters.GetHeroCountersAsync(id, limit, ct);
+        if (result is null)
         {
             return TypedResults.Problem(
                 title: "Hero not found",
@@ -45,47 +42,6 @@ public static class HeroEndpoints
                 statusCode: StatusCodes.Status404NotFound);
         }
 
-        // Load every hero's results against this hero (at most one row per hero)
-        var matchups = await db.HeroMatchups
-            .AsNoTracking()
-            .Where(m => m.AgainstHeroId == id && m.GamesPlayed > 0)
-            .Select(m => new
-            {
-                m.Hero.Id,
-                m.Hero.LocalizedName,
-                m.Hero.PrimaryAttr,
-                m.Hero.ImgUrl,
-                m.Wins,
-                m.GamesPlayed,
-                m.WinRate
-            })
-            .ToListAsync(ct);
-
-        // Each hero's overall win rate, so general strength isn't mistaken for countering
-        var baselines = await db.LoadBaselineWinRatesAsync(ct);
-
-        // Rank by sample-adjusted advantage over the baseline
-        var priorGames = options.Value.PriorGames;
-        var counters = matchups
-            .Select(m =>
-            {
-                var baseline = baselines.GetValueOrDefault(m.Id, 0.5);
-                var advantage = CounterRanking.Advantage(m.Wins, m.GamesPlayed, baseline, priorGames);
-                return new HeroCounterDto(
-                    m.Id,
-                    m.LocalizedName,
-                    m.PrimaryAttr,
-                    m.ImgUrl,
-                    Math.Round((decimal)advantage * 100m, 2),
-                    m.WinRate,
-                    Math.Round((decimal)baseline * 100m, 2),
-                    m.GamesPlayed);
-            })
-            .OrderByDescending(c => c.Advantage)
-            .ThenByDescending(c => c.GamesPlayed)
-            .Take(limit)
-            .ToList();
-
-        return TypedResults.Ok(counters);
+        return TypedResults.Ok(result);
     }
 }

@@ -40,8 +40,9 @@ npx ng build
 - `Endpoints/`: one static class per area, registered from `Program.cs`. Responses use `TypedResults`. Every error is ProblemDetails: return `TypedResults.Problem`/`ValidationProblem`; empty status codes and unhandled exceptions are converted by `UseStatusCodePages`/`UseExceptionHandler` (exception details only in Development).
 - `Dtos/` holds this API's response contracts. Return DTOs, never EF entities.
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
-- `Services/`: `HeroIngestionService` (scoped seeding: per-hero upserts for `Pro`, a windowed whole-table replace for `Public`), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding), `CounterRanking`.
-- Request validation uses data annotations on handler parameters (`AddValidation()`); only checks that need the database stay in the handler.
+- `Services/`: `CounterService` (the counter queries behind both counter endpoints; `CounterRanking` holds the formula), `HeroIngestionService` (scoped seeding of heroes, and of matchups through the `IMatchupSource` that `Matchups:Source` selects: `MatchupSources/ProMatchupSource` upserts per hero, `PublicMatchupSource` does a windowed whole-table replace; registered via `AddHeroIngestion()`), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding; the job takes `TimeProvider` for its timestamps).
+- Endpoints stay thin: bind, call a service, map the result to `TypedResults`. No repository layer: `AppDbContext` is used directly in services.
+- Request validation uses data annotations on handler parameters (`AddValidation()`); checks that need the database go in the service, and the handler maps their result to a `ValidationProblem` or `Problem`.
 - Settings are options classes with a `SectionName`, documented defaults and data-annotation ranges, registered with `ValidateDataAnnotations().ValidateOnStart()`. Keep `appsettings.json` and the README's configuration table in sync.
 - Frontend: standalone components, signals, and Tailwind utility classes in templates. API calls go through `HeroApiService` using `environment.apiBaseUrl`. The interfaces in `hero.models.ts` mirror the C# DTOs, so change both together.
 - Tests:

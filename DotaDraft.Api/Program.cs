@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddOpenApi();
 
 // Every error response is RFC 9457 ProblemDetails: explicit Problem results, empty status codes
@@ -52,13 +51,14 @@ builder.Services.AddCors(options => options.AddPolicy(AngularClientCorsPolicy, p
     // Lets the client read where to poll after queueing matchup seeding (202 Accepted)
     .WithExposedHeaders("Location")));
 
-builder.Services.AddScoped<HeroIngestionService>();
+builder.Services.AddScoped<CounterService>();
+builder.Services.AddHeroIngestion();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<MatchupSeedJob>();
 builder.Services.AddHostedService<MatchupSeedWorker>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 // In Development the framework's developer exception page handles exceptions, adding their details;
 // elsewhere the handler returns a 500 ProblemDetails without them
 if (!app.Environment.IsDevelopment())
@@ -75,7 +75,6 @@ app.UseHttpsRedirection();
 
 app.UseCors(AngularClientCorsPolicy);
 
-// Endpoints
 app.RegisterHeroEndpoints();
 app.RegisterDraftEndpoints();
 app.RegisterAdminEndpoints();
