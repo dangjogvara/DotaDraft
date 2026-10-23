@@ -21,7 +21,7 @@ public record SeedJobStatus(
 
 // Singleton handing matchup seed requests from the admin endpoint to MatchupSeedWorker,
 // and tracking the latest run so clients can poll its status
-public class MatchupSeedJob
+public class MatchupSeedJob(TimeProvider time)
 {
     // Capacity 1 is enough: TryEnqueue refuses while a run is queued or in progress
     private readonly Channel<bool> _requests = Channel.CreateBounded<bool>(1);
@@ -43,7 +43,7 @@ public class MatchupSeedJob
             if (_status.State is SeedJobState.Queued or SeedJobState.Running)
                 return false;
 
-            _status = new SeedJobStatus(SeedJobState.Queued, QueuedAt: DateTimeOffset.UtcNow);
+            _status = new SeedJobStatus(SeedJobState.Queued, QueuedAt: time.GetUtcNow());
             _requests.Writer.TryWrite(true);
             return true;
         }
@@ -52,7 +52,7 @@ public class MatchupSeedJob
     public void MarkRunning()
     {
         lock (_lock)
-            _status = _status with { State = SeedJobState.Running, StartedAt = DateTimeOffset.UtcNow };
+            _status = _status with { State = SeedJobState.Running, StartedAt = time.GetUtcNow() };
     }
 
     public void MarkFinished(SeedResult result)
@@ -61,7 +61,7 @@ public class MatchupSeedJob
             _status = _status with
             {
                 State = result.Succeeded ? SeedJobState.Succeeded : SeedJobState.Failed,
-                FinishedAt = DateTimeOffset.UtcNow,
+                FinishedAt = time.GetUtcNow(),
                 Result = result,
                 Error = result.Error
             };
@@ -73,7 +73,7 @@ public class MatchupSeedJob
             _status = _status with
             {
                 State = SeedJobState.Failed,
-                FinishedAt = DateTimeOffset.UtcNow,
+                FinishedAt = time.GetUtcNow(),
                 Result = result,
                 Error = error
             };

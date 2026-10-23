@@ -2,6 +2,7 @@ using DotaDraft.Api.Data;
 using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Models;
 using DotaDraft.Api.Services;
+using DotaDraft.Api.Services.MatchupSources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -16,15 +17,19 @@ public class HeroIngestionServiceTests
         .Options);
 
     private HeroIngestionService CreateService(
-        int matchupRequestDelayMs = 0, MatchupSource source = MatchupSource.Pro, int windowCount = 3, int? minAvgRankTier = null) => new(
-        _client,
-        _db,
-        NullLogger<HeroIngestionService>.Instance,
-        Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test", MatchupRequestDelayMs = matchupRequestDelayMs }),
-        Options.Create(new MatchupOptions
+        int matchupRequestDelayMs = 0, MatchupSource source = MatchupSource.Pro, int windowCount = 3, int? minAvgRankTier = null)
+    {
+        var options = Options.Create(new OpenDotaOptions
         {
-            Source = source, WindowSize = 100, WindowCount = windowCount, MinAvgRankTier = minAvgRankTier
-        }));
+            SteamCdnBaseUrl = "https://cdn.test", MatchupRequestDelayMs = matchupRequestDelayMs
+        });
+        IMatchupSource matchupSource = source == MatchupSource.Pro
+            ? new ProMatchupSource(_client, _db, NullLogger<ProMatchupSource>.Instance, options)
+            : new PublicMatchupSource(_client, _db, NullLogger<PublicMatchupSource>.Instance, options, Options.Create(
+                new MatchupOptions { WindowSize = 100, WindowCount = windowCount, MinAvgRankTier = minAvgRankTier }));
+
+        return new(_client, _db, NullLogger<HeroIngestionService>.Instance, options, matchupSource);
+    }
 
     private HeroIngestionService CreatePublicService(int windowCount = 3, int? minAvgRankTier = null) =>
         CreateService(source: MatchupSource.Public, windowCount: windowCount, minAvgRankTier: minAvgRankTier);

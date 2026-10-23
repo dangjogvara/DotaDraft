@@ -35,7 +35,7 @@ public class MatchupSeedWorker(
 
             var result = await ingestion.SeedMatchupsAsync(stoppingToken);
 
-            // SeedMatchupsAsync stops early and returns what it saved when cancelled between heroes
+            // The pro source stops early and returns what it saved when cancelled between heroes
             if (stoppingToken.IsCancellationRequested)
                 job.MarkFailed("Cancelled because the application is shutting down.", result);
             else
