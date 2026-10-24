@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using DotaDraft.Api.Dtos;
 using DotaDraft.Api.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace DotaDraft.Api.Endpoints;
 
@@ -13,12 +15,21 @@ public static class DraftEndpoints
     public static void RegisterDraftEndpoints(this WebApplication app)
     {
         // Repeated keys bind to the array: /api/counters?against=1&against=14
-        app.MapGet("/api/counters", GetDraftCounters);
+        app.MapGet("/api/counters", GetDraftCounters)
+            .WithName(nameof(GetDraftCounters))
+            .WithTags("Counters");
     }
 
     // The attributes are checked by the framework's validation (AddValidation) before the handler runs,
     // returning a 400 ValidationProblem; only the unknown-ID check needs the database, so CounterService does it
-    private static async Task<IResult> GetDraftCounters(
+    /// <summary>Best counter picks against an enemy lineup.</summary>
+    /// <remarks>
+    /// Ranked by each hero's advantage summed over the enemies, so heroes that counter several picks rank highest.
+    /// Enemy heroes are never suggested.
+    /// </remarks>
+    /// <param name="against">1 to 5 distinct enemy hero IDs. Repeat the key for each hero: against=1, then against=14.</param>
+    /// <param name="limit">How many counters to return, 1 to 20.</param>
+    internal static async Task<Results<Ok<IReadOnlyList<DraftCounterDto>>, ValidationProblem>> GetDraftCounters(
         [Required(ErrorMessage = LineupSizeError)]
         [Length(1, MaxEnemies, ErrorMessage = LineupSizeError)]
         [Distinct(ErrorMessage = "Enemy hero IDs must be distinct.")]

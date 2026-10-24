@@ -1,4 +1,6 @@
+using DotaDraft.Api.Dtos;
 using DotaDraft.Api.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace DotaDraft.Api.Endpoints;
 
@@ -17,21 +19,42 @@ public static class AdminEndpoints
         }
 
         var adminApi = app.MapGroup("/api/admin")
-            .AddEndpointFilter(new AdminKeyFilter(adminKey));
+            .AddEndpointFilter(new AdminKeyFilter(adminKey))
+            .WithTags("Admin")
+            .ProducesProblem(StatusCodes.Status401Unauthorized);
 
-        adminApi.MapPost("/seed-heroes", SeedHeroes);
-        adminApi.MapPost("/seed-matchups", SeedMatchups);
-        adminApi.MapGet("/seed-matchups/status", GetMatchupSeedStatus);
+        adminApi.MapPost("/seed-heroes", SeedHeroes)
+            .WithName(nameof(SeedHeroes))
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
+            .ProducesProblem(StatusCodes.Status502BadGateway);
+
+        adminApi.MapPost("/seed-matchups", SeedMatchups)
+            .WithName(nameof(SeedMatchups))
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        adminApi.MapGet("/seed-matchups/status", GetMatchupSeedStatus)
+            .WithName(nameof(GetMatchupSeedStatus));
     }
 
-    private static async Task<IResult> SeedHeroes(HeroIngestionService ingestion, CancellationToken ct)
+    /// <summary>Fetch heroes from OpenDota and insert or update them.</summary>
+    /// <remarks>Run this before seeding matchups. Safe to repeat, e.g. after a patch.</remarks>
+    internal static async Task<Results<Ok<SeedHeroesResponse>, ProblemHttpResult>> SeedHeroes(
+        HeroIngestionService ingestion, CancellationToken ct)
     {
         var result = await ingestion.SeedHeroesAsync(ct);
-        return ToResult(result, $"Seeded {result.Saved} heroes.");
+        if (result.Succeeded)
+            return TypedResults.Ok(new SeedHeroesResponse($"Seeded {result.Saved} heroes."));
+
+        return ToProblem(result);
     }
 
     // Matchup seeding takes minutes, so it is queued for MatchupSeedWorker instead of run in the request
-    private static IResult SeedMatchups(MatchupSeedJob job)
+    /// <summary>Queue a matchup seeding job.</summary>
+    /// <remarks>
+    /// Returns at once; poll the status endpoint in the Location header. The source is set by Matchups:Source.
+    /// Returns 409 while a job is queued or running.
+    /// </remarks>
+    internal static Results<Accepted<MatchupSeedStatusDto>, ProblemHttpResult> SeedMatchups(MatchupSeedJob job)
     {
         if (!job.TryEnqueue())
         {
@@ -43,26 +66,22 @@ public static class AdminEndpoints
         return TypedResults.Accepted("/api/admin/seed-matchups/status", ToStatusResponse(job.Status));
     }
 
-    private static IResult GetMatchupSeedStatus(MatchupSeedJob job) =>
+    /// <summary>State of the latest matchup seeding job.</summary>
+    internal static Ok<MatchupSeedStatusDto> GetMatchupSeedStatus(MatchupSeedJob job) =>
         TypedResults.Ok(ToStatusResponse(job.Status));
 
-    private static object ToStatusResponse(SeedJobStatus status) => new
-    {
-        state = status.State.ToString(),
+    private static MatchupSeedStatusDto ToStatusResponse(SeedJobStatus status) => new(
+        status.State.ToString(),
         status.QueuedAt,
         status.StartedAt,
         status.FinishedAt,
-        saved = status.Result?.Saved,
-        failedHeroIds = status.Result?.FailedHeroIds,
-        failedWindows = status.Result?.FailedWindows,
-        error = status.Error
-    };
+        status.Result?.Saved,
+        status.Result?.FailedHeroIds,
+        status.Result?.FailedWindows,
+        status.Error);
 
-    private static IResult ToResult(SeedResult result, string successMessage)
+    private static ProblemHttpResult ToProblem(SeedResult result)
     {
-        if (result.Succeeded)
-            return TypedResults.Ok(new { message = successMessage });
-
         var statusCode = result.Failure switch
         {
             SeedFailure.Upstream => StatusCodes.Status502BadGateway,

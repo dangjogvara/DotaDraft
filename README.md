@@ -102,6 +102,8 @@ curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/
 | `POST` | `/api/admin/seed-matchups` | `X-Admin-Key` | Queue a matchup seeding job; returns `202` with a `Location` header |
 | `GET` | `/api/admin/seed-matchups/status` | `X-Admin-Key` | State of the latest seeding job |
 
+In Development, the OpenAPI document is at `/openapi/v1.json` and a browsable API reference, where you can try each endpoint, is at [`/scalar`](http://localhost:8080/scalar). Both describe every response type and come from the endpoints' `///` comments.
+
 Example requests are in [`DotaDraft.Api/DotaDraft.Api.http`](DotaDraft.Api/DotaDraft.Api.http). It reads the admin key from the `DOTADRAFT_ADMIN_KEY` environment variable.
 
 Errors are [ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`) with `status`, `title` and usually `detail`; validation errors add an `errors` object per parameter. Unhandled exceptions return a `500` without exception details outside Development.
