@@ -1,3 +1,4 @@
+using DotaDraft.Api.Authentication;
 using DotaDraft.Api.Dtos;
 using DotaDraft.Api.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -11,15 +12,14 @@ public static class AdminEndpoints
     public static void RegisterAdminEndpoints(this WebApplication app)
     {
         // Fail closed: without a configured key the endpoints don't exist, rather than being open
-        var adminKey = app.Configuration[AdminKeyConfigKey];
-        if (string.IsNullOrWhiteSpace(adminKey))
+        if (string.IsNullOrWhiteSpace(app.Configuration[AdminKeyConfigKey]))
         {
             app.Logger.LogWarning("{ConfigKey} is not configured; admin endpoints are disabled.", AdminKeyConfigKey);
             return;
         }
 
         var adminApi = app.MapGroup("/api/admin")
-            .AddEndpointFilter(new AdminKeyFilter(adminKey))
+            .RequireAuthorization(AdminKeyDefaults.PolicyName)
             .WithTags("Admin")
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 

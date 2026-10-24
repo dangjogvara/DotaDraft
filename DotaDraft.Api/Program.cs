@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DotaDraft.Api.Authentication;
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Endpoints;
 using DotaDraft.Api.Integrations.OpenDota;
@@ -8,7 +9,11 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<AdminKeySecuritySchemeTransformer>();
+    options.AddOperationTransformer<AdminKeySecuritySchemeTransformer>();
+});
 
 // Numbers are only read as JSON numbers, not strings ("5"). The API takes no JSON bodies, so this only
 // stops the OpenAPI document from describing every number as "integer or string"
@@ -53,9 +58,11 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
 builder.Services.AddCors(options => options.AddPolicy(AngularClientCorsPolicy, policy => policy
     .WithOrigins(allowedOrigins)
     .WithMethods("GET", "POST")
-    .WithHeaders("Content-Type", AdminKeyFilter.HeaderName)
+    .WithHeaders("Content-Type", AdminKeyDefaults.HeaderName)
     // Lets the client read where to poll after queueing matchup seeding (202 Accepted)
     .WithExposedHeaders("Location")));
+
+builder.Services.AddAdminKeyAuthentication();
 
 builder.Services.AddScoped<CounterService>();
 builder.Services.AddHeroIngestion();
@@ -82,6 +89,9 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors(AngularClientCorsPolicy);
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.RegisterHeroEndpoints();
 app.RegisterDraftEndpoints();
