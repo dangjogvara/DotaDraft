@@ -108,7 +108,7 @@ Example requests are in [`DotaDraft.Api/DotaDraft.Api.http`](DotaDraft.Api/DotaD
 
 Errors are [ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`) with `status`, `title` and usually `detail`; validation errors add an `errors` object per parameter. Unhandled exceptions return a `500` without exception details outside Development.
 
-Admin endpoints return `401` without a valid key. If `Admin:ApiKey` isn't configured they aren't mapped at all and return `404`, so a missing setting never leaves them open.
+Admin endpoints require the `Admin` authorization policy, which is met by sending the configured key in `X-Admin-Key`, and return `401` without a valid key. The `/scalar` reference lists `AdminKey` as the endpoints' auth scheme, so you can enter the key there to try them. If `Admin:ApiKey` isn't configured they aren't mapped at all and return `404`, so a missing setting never leaves them open.
 
 ### How counters are ranked
 
@@ -171,7 +171,8 @@ The API tests don't need Docker, the database or any secrets. They use EF Core's
 
 ```
 DotaDraft.Api/
-  Endpoints/               Minimal API endpoints and the admin key filter
+  Endpoints/               Minimal API endpoints
+  Authentication/          X-Admin-Key authentication handler and the Admin policy
   Services/                Counter ranking, hero ingestion, the seeding background job
     MatchupSources/        One class per Matchups:Source (Public, Pro)
   Integrations/OpenDota/   OpenDota HTTP client (with retries), its DTOs and options

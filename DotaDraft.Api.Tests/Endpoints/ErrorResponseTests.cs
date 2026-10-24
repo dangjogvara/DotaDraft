@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using DotaDraft.Api.Endpoints;
+using DotaDraft.Api.Authentication;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotaDraft.Api.Tests.Endpoints;
@@ -22,7 +22,7 @@ public class ErrorResponseTests
     private static Task<HttpResponseMessage> SeedHeroes(DotaDraftApiFactory factory)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/seed-heroes");
-        request.Headers.Add(AdminKeyFilter.HeaderName, DotaDraftApiFactory.AdminKey);
+        request.Headers.Add(AdminKeyDefaults.HeaderName, DotaDraftApiFactory.AdminKey);
         request.Headers.Accept.ParseAdd("application/json");
         return factory.CreateClient().SendAsync(request);
     }

@@ -1,5 +1,5 @@
 using System.Net;
-using DotaDraft.Api.Endpoints;
+using DotaDraft.Api.Authentication;
 using DotaDraft.Api.Integrations.OpenDota;
 
 namespace DotaDraft.Api.Tests.Endpoints;
@@ -10,7 +10,7 @@ public class AdminEndpointsTests
     {
         var request = new HttpRequestMessage(method, url);
         if (adminKey is not null)
-            request.Headers.Add(AdminKeyFilter.HeaderName, adminKey);
+            request.Headers.Add(AdminKeyDefaults.HeaderName, adminKey);
         return request;
     }
 

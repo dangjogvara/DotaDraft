@@ -92,6 +92,28 @@ public class OpenApiDocumentTests : IAsyncLifetime
     }
 
     [Fact]
+    public void AdminKey_IsDescribedAsAnApiKeyHeader()
+    {
+        var scheme = _document["components"]!["securitySchemes"]!["AdminKey"]!;
+
+        Assert.Equal("apiKey", (string?)scheme["type"]);
+        Assert.Equal("header", (string?)scheme["in"]);
+        Assert.Equal("X-Admin-Key", (string?)scheme["name"]);
+    }
+
+    [Theory]
+    [MemberData(nameof(Operations))]
+    public void OnlyAdminEndpoints_RequireTheAdminKey(string path, string method, string operationId, string tag)
+    {
+        var security = Operation(path, method)["security"]?.AsArray();
+
+        if (tag == "Admin")
+            Assert.NotNull(Assert.Single(security!)!["AdminKey"]);
+        else
+            Assert.True(security is null || security.Count == 0, $"{operationId} should not require a key");
+    }
+
+    [Fact]
     public async Task ApiReference_IsServedInDevelopment()
     {
         var response = await _factory.CreateClient().GetAsync("/scalar");
