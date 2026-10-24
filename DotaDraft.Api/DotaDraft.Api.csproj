@@ -5,6 +5,10 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
       <UserSecretsId>a2ef6fd5-501f-4ca6-b848-641c3a52f4a9</UserSecretsId>
+        <!-- Puts /// comments on endpoints, DTOs and options into the OpenAPI document -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- Not every public member or parameter needs a doc comment -->
+        <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
   </PropertyGroup>
 
     <ItemGroup>
@@ -15,6 +19,7 @@
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        <PackageReference Include="Scalar.AspNetCore" Version="2.18.3" />
     </ItemGroup>
 
 </Project>

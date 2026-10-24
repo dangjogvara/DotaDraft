@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Dtos;
 using DotaDraft.Api.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace DotaDraft.Api.Endpoints;
@@ -12,12 +13,21 @@ public static class HeroEndpoints
     {
         var heroesApi = app.MapGroup("/api/heroes");
 
-        heroesApi.MapGet("/", GetHeroes);
-        heroesApi.MapGet("/{id:int}/counters", GetHeroCounters);
+        heroesApi.MapGet("/", GetHeroes)
+            .WithName(nameof(GetHeroes))
+            .WithTags("Heroes");
+
+        heroesApi.MapGet("/{id:int}/counters", GetHeroCounters)
+            .WithName(nameof(GetHeroCounters))
+            .WithTags("Counters")
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     // Projects to HeroDto so the public contract doesn't follow the DB schema (e.g. the Matchups navigation)
-    private static async Task<IResult> GetHeroes(AppDbContext db, CancellationToken ct)
+    /// <summary>List all heroes.</summary>
+    /// <remarks>Sorted by name. Empty until heroes are seeded.</remarks>
+    internal static async Task<Ok<List<HeroDto>>> GetHeroes(AppDbContext db, CancellationToken ct)
     {
         var heroes = await db.Heroes
             .AsNoTracking()
@@ -27,7 +37,11 @@ public static class HeroEndpoints
         return TypedResults.Ok(heroes);
     }
 
-    private static async Task<IResult> GetHeroCounters(
+    /// <summary>Best counter picks against one hero.</summary>
+    /// <remarks>Ranked by sample-adjusted advantage over each counter's own baseline win rate.</remarks>
+    /// <param name="id">The enemy hero's ID.</param>
+    /// <param name="limit">How many counters to return, 1 to 20.</param>
+    internal static async Task<Results<Ok<IReadOnlyList<HeroCounterDto>>, ProblemHttpResult>> GetHeroCounters(
         int id,
         CounterService counters,
         [Range(1, DraftEndpoints.MaxLimit)] int limit = 5,

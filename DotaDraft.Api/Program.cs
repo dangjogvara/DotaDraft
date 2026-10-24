@@ -1,12 +1,18 @@
+using System.Text.Json.Serialization;
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Endpoints;
 using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+
+// Numbers are only read as JSON numbers, not strings ("5"). The API takes no JSON bodies, so this only
+// stops the OpenAPI document from describing every number as "integer or string"
+builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 
 // Every error response is RFC 9457 ProblemDetails: explicit Problem results, empty status codes
 // (e.g. 401, unmatched routes) via UseStatusCodePages, and unhandled exceptions via UseExceptionHandler
@@ -69,6 +75,8 @@ app.UseStatusCodePages();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    // Browsable API reference at /scalar, built from the OpenAPI document
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
