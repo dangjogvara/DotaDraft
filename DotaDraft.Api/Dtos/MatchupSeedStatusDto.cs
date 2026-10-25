@@ -1,8 +1,5 @@
 namespace DotaDraft.Api.Dtos;
 
-/// <param name="Message">What was seeded, e.g. "Seeded 127 heroes."</param>
-public record SeedHeroesResponse(string Message);
-
 /// <summary>The latest matchup seeding job. Status is kept in memory, so it resets when the API restarts.</summary>
 /// <param name="State">Idle, Queued, Running, Succeeded or Failed.</param>
 /// <param name="QueuedAt">When the job was requested.</param>
