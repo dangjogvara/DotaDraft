@@ -2,23 +2,6 @@ using System.Threading.Channels;
 
 namespace DotaDraft.Api.Services;
 
-public enum SeedJobState
-{
-    Idle,
-    Queued,
-    Running,
-    Succeeded,
-    Failed
-}
-
-public record SeedJobStatus(
-    SeedJobState State,
-    DateTimeOffset? QueuedAt = null,
-    DateTimeOffset? StartedAt = null,
-    DateTimeOffset? FinishedAt = null,
-    SeedResult? Result = null,
-    string? Error = null);
-
 // Singleton handing matchup seed requests from the admin endpoint to MatchupSeedWorker,
 // and tracking the latest run so clients can poll its status
 public class MatchupSeedJob(TimeProvider time)

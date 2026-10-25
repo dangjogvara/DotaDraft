@@ -5,9 +5,6 @@ using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Services;
 
-/// <summary>Either the ranked counters, or the requested enemy IDs that aren't known heroes.</summary>
-public record DraftCountersResult(IReadOnlyList<DraftCounterDto> Counters, IReadOnlyList<int> UnknownHeroIds);
-
 // Ranks counter picks from the stored matchups; see CounterRanking for the formula
 public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 {

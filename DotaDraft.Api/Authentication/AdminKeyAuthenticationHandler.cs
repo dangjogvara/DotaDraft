@@ -7,12 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Authentication;
 
-public class AdminKeyAuthenticationOptions : AuthenticationSchemeOptions
-{
-    /// <summary>The key callers must send in the X-Admin-Key header. Nobody is authenticated while it's unset.</summary>
-    public string? ApiKey { get; set; }
-}
-
 // Authenticates a caller as the admin when the X-Admin-Key header matches Admin:ApiKey
 public class AdminKeyAuthenticationHandler(
     IOptionsMonitor<AdminKeyAuthenticationOptions> options,
