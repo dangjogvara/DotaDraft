@@ -26,9 +26,6 @@ public class OpenApiDocumentTests : IAsyncLifetime
         { "/api/heroes", "get", "GetHeroes", "Heroes" },
         { "/api/heroes/{id}/counters", "get", "GetHeroCounters", "Counters" },
         { "/api/counters", "get", "GetDraftCounters", "Counters" },
-        { "/api/admin/seed-heroes", "post", "SeedHeroes", "Admin" },
-        { "/api/admin/seed-matchups", "post", "SeedMatchups", "Admin" },
-        { "/api/admin/seed-matchups/status", "get", "GetMatchupSeedStatus", "Admin" },
     };
 
     [Theory]
@@ -63,24 +60,6 @@ public class OpenApiDocumentTests : IAsyncLifetime
         Assert.Equal("#/components/schemas/ProblemDetails", SchemaRef(operation, "404", "application/problem+json"));
     }
 
-    [Theory]
-    [InlineData("/api/admin/seed-heroes", "post")]
-    [InlineData("/api/admin/seed-matchups", "post")]
-    [InlineData("/api/admin/seed-matchups/status", "get")]
-    public void AdminEndpoints_DescribeUnauthorized(string path, string method)
-    {
-        Assert.NotNull(Operation(path, method)["responses"]!["401"]);
-    }
-
-    [Fact]
-    public void SeedMatchups_DescribesAcceptedStatusAndConflict()
-    {
-        var operation = Operation("/api/admin/seed-matchups", "post");
-
-        Assert.Equal("#/components/schemas/MatchupSeedStatusDto", SchemaRef(operation, "202"));
-        Assert.NotNull(operation["responses"]!["409"]);
-    }
-
     [Fact]
     public void DtoProperties_HaveDescriptions_AndPlainNumberTypes()
     {
@@ -89,28 +68,6 @@ public class OpenApiDocumentTests : IAsyncLifetime
         Assert.Contains("percentage points", (string?)properties["advantage"]!["description"]);
         Assert.Equal("integer", (string?)properties["gamesPlayed"]!["type"]);
         Assert.Equal("number", (string?)properties["advantage"]!["type"]);
-    }
-
-    [Fact]
-    public void AdminKey_IsDescribedAsAnApiKeyHeader()
-    {
-        var scheme = _document["components"]!["securitySchemes"]!["AdminKey"]!;
-
-        Assert.Equal("apiKey", (string?)scheme["type"]);
-        Assert.Equal("header", (string?)scheme["in"]);
-        Assert.Equal("X-Admin-Key", (string?)scheme["name"]);
-    }
-
-    [Theory]
-    [MemberData(nameof(Operations))]
-    public void OnlyAdminEndpoints_RequireTheAdminKey(string path, string method, string operationId, string tag)
-    {
-        var security = Operation(path, method)["security"]?.AsArray();
-
-        if (tag == "Admin")
-            Assert.NotNull(Assert.Single(security!)!["AdminKey"]);
-        else
-            Assert.True(security is null || security.Count == 0, $"{operationId} should not require a key");
     }
 
     [Fact]

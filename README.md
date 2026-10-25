@@ -34,9 +34,6 @@ Secrets never live in the repo. The database password goes in a gitignored `.env
      "Host=localhost;Port=5432;Database=dotadraft;Username=postgres;Password=<your password>" \
      --project DotaDraft.Api
 
-   # Required for the admin (seeding) endpoints; without it they are disabled
-   dotnet user-secrets set "Admin:ApiKey" "$(openssl rand -hex 32)" --project DotaDraft.Api
-
    # Optional: an OpenDota API key (https://www.opendota.com/api-keys) for higher rate limits
    read -rsp "OpenDota API key: " KEY && echo && dotnet user-secrets set "OpenDota:ApiKey" "$KEY" --project DotaDraft.Api; unset KEY
    ```
@@ -55,9 +52,9 @@ Secrets never live in the repo. The database password goes in a gitignored `.env
    dotnet run --project DotaDraft.Api --launch-profile http
    ```
 
-6. **Seed the data** (see below).
+   On first start it seeds heroes and matchups from OpenDota in the background, which takes about 1.5 minutes (see [Seeding](#seeding)).
 
-7. **Run the frontend** on http://localhost:4200, in a second terminal:
+6. **Run the frontend** on http://localhost:4200, in a second terminal:
 
    ```bash
    cd DotaDraft.Web
@@ -69,49 +66,39 @@ Secrets never live in the repo. The database password goes in a gitignored `.env
 
 ## Seeding
 
-The database starts empty. Seed **heroes first, then matchups**, because matchups reference heroes. Admin endpoints need your admin key in the `X-Admin-Key` header:
+The API fills the database itself, in the background:
+- **At startup,** if there are no matchups yet. On a fresh database the data appears about 1.5 minutes after the API starts, and restarts with data already there don't re-seed.
+- **Then every 24 hours** (`Seeding:IntervalHours`), so new patches and matches are picked up. The timer starts when the API starts, so frequent restarts delay the next scheduled seed.
+
+Each run fetches heroes first, then matchups. Progress and errors go to the API's logs. A failed run is logged, and the next scheduled run tries again.
+
+To re-seed locally right away, empty the matchup table and restart the API:
 
 ```bash
-ADMIN_KEY="$(dotnet user-secrets list --project DotaDraft.Api | sed -n 's/^Admin:ApiKey = //p')"
-
-# 1. Heroes: about a second
-curl -X POST -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-heroes
-
-# 2. Matchups: queued as a background job (202 Accepted), takes about 1.5 minutes
-curl -X POST -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups
-
-# Poll until "state" is Succeeded or Failed
-curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/status
+docker exec dota_postgres psql -U postgres -d dotadraft -c 'TRUNCATE "HeroMatchups";'
 ```
 
-- **Re-seeding is safe.** Existing rows are updated with fresh numbers and new ones are inserted, so run it again after a Dota patch.
 - **Matchups come from public ranked matches.** DotaDraft runs SQL through OpenDota's [`/explorer`](https://docs.opendota.com/#tag/explorer) endpoint over its `public_matches` table: ranked All Pick games, counting every hero against every hero on the other team. The explorer stops queries after about 15 seconds, so the seed walks back from the newest match in windows of `WindowSize` match IDs (default 15 × 200,000, roughly the last 1.5 days) and adds the windows together. That's about 16 requests and a median of roughly 1,900 games per matchup.
-- **A matchup seed replaces the whole table.** Pairs that no longer appear are removed. If fewer than half the windows can be fetched, nothing is written and the existing data is kept. If only some fail, the rest is saved and the job ends as `Failed` with a `failedWindows` count.
+- **A matchup seed replaces the whole table.** Pairs that no longer appear are removed. If fewer than half the windows can be fetched, nothing is written and the existing data is kept. If only some fail, the rest is saved and the failure is logged.
 - **`/explorer` isn't a stable, documented API.** If OpenDota changes its schema, the queries fail with an `err` message in the logs, and seeding fails while the existing matchups are kept.
 - Requests are spaced about 1 second apart to stay under the free tier's 60 requests/minute, and rate-limit responses (429) are retried with backoff.
-- **Job status is kept in memory.** It resets when the API restarts, and only one run can be queued or running at a time (a second request gets `409 Conflict`).
 
 ## API
 
 The full API reference, with every parameter, response and schema, is the OpenAPI document. It's generated from the code, so it can't drift from it. Run the API in Development and open [`/scalar`](http://localhost:8080/scalar) to browse it and try each endpoint, or fetch the raw document at `/openapi/v1.json`. Its descriptions come from the endpoints' and DTOs' `///` comments. This table is only an overview:
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/api/heroes` | none | All heroes, sorted by name |
-| `GET` | `/api/heroes/{id}/counters?limit=5` | none | Top counter-picks against a hero (`limit` 1–20) |
-| `GET` | `/api/counters?against=1&against=14&limit=10` | none | Top counter-picks against an enemy lineup of 1–5 heroes (`limit` 1–20) |
-| `POST` | `/api/admin/seed-heroes` | `X-Admin-Key` | Fetch and upsert heroes from OpenDota |
-| `POST` | `/api/admin/seed-matchups` | `X-Admin-Key` | Queue a matchup seeding job; returns `202` with a `Location` header |
-| `GET` | `/api/admin/seed-matchups/status` | `X-Admin-Key` | State of the latest seeding job |
-| `GET` | `/health` | none | `Healthy` (200) when the API can reach the database, otherwise `Unhealthy` (503) |
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/heroes` | All heroes, sorted by name |
+| `GET` | `/api/heroes/{id}/counters?limit=5` | Top counter-picks against a hero (`limit` 1–20) |
+| `GET` | `/api/counters?against=1&against=14&limit=10` | Top counter-picks against an enemy lineup of 1–5 heroes (`limit` 1–20) |
+| `GET` | `/health` | `Healthy` (200) when the API can reach the database, otherwise `Unhealthy` (503) |
 
 `/health` is meant for uptime monitors and hosting platforms. It answers in plain text, isn't listed in the OpenAPI document, and is the same in every environment.
 
-Example requests are in [`DotaDraft.Api/DotaDraft.Api.http`](DotaDraft.Api/DotaDraft.Api.http). It reads the admin key from the `DOTADRAFT_ADMIN_KEY` environment variable.
+Example requests are in [`DotaDraft.Api/DotaDraft.Api.http`](DotaDraft.Api/DotaDraft.Api.http).
 
 Errors are [ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`) with `status`, `title` and usually `detail`; validation errors add an `errors` object per parameter. Unhandled exceptions return a `500` without exception details outside Development.
-
-Admin endpoints require the `Admin` authorization policy, which is met by sending the configured key in `X-Admin-Key`, and return `401` without a valid key. The `/scalar` reference lists `AdminKey` as the endpoints' auth scheme, so you can enter the key there to try them. If `Admin:ApiKey` isn't configured they aren't mapped at all and return `404`, so a missing setting never leaves them open.
 
 ### How counters are ranked
 
@@ -139,12 +126,11 @@ With public match data most matchups have well over 1,000 games, so `trust` is c
 
 ## Configuration
 
-Settings come from `appsettings.json`, then `appsettings.Development.json`, then user-secrets (Development only), then environment variables. They are validated at startup, so an invalid value (for example a negative `Counters:PriorGames`) stops the API with an `OptionsValidationException` naming the setting. In production, set secrets as environment variables, using `__` in place of `:` (for example `Admin__ApiKey`).
+Settings come from `appsettings.json`, then `appsettings.Development.json`, then user-secrets (Development only), then environment variables. They are validated at startup, so an invalid value (for example a negative `Counters:PriorGames`) stops the API with an `OptionsValidationException` naming the setting. In production, set secrets as environment variables, using `__` in place of `:` (for example `OpenDota__ApiKey`).
 
 | Setting | Default | Description |
 |---|---|---|
 | `ConnectionStrings:DefaultConnection` | none (required) | PostgreSQL connection string |
-| `Admin:ApiKey` | none | Key for the admin endpoints; they are disabled when unset |
 | `OpenDota:ApiKey` | none | Optional OpenDota API key, sent as a bearer token |
 | `OpenDota:MatchupRequestDelayMs` | `1100` | Delay between matchup requests (one per window) |
 | `OpenDota:MaxRetryAttempts` | `3` | Retries after a transient failure (429, 5xx, network) |
@@ -154,9 +140,10 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 | `Matchups:WindowCount` | `15` | Windows per seed, walking back from the newest match |
 | `Matchups:MinAvgRankTier` | none | Only count matches with at least this average rank (10–15 Herald … 80 Immortal); unset includes all ranks |
 | `Counters:PriorGames` | `30` | `k` in the counter ranking |
+| `Seeding:IntervalHours` | `24` | Hours between automatic seeds (1–720) |
 | `Cors:AllowedOrigins` | `http://localhost:4200` in Development, none otherwise | Origins allowed to call the API from a browser |
 
-**CORS:** in Development, the Angular dev server (`ng serve` on port 4200) can call the API directly. In production, no origins are allowed until you configure them, for example `Cors__AllowedOrigins__0=https://your-app.example.com`. Serve the API over HTTPS there, since the admin key travels in a header.
+**CORS:** in Development, the Angular dev server (`ng serve` on port 4200) can call the API directly. In production, no origins are allowed until you configure them, for example `Cors__AllowedOrigins__0=https://your-app.example.com`. The API only accepts `GET` requests from browsers.
 
 ## Tests
 
@@ -174,8 +161,7 @@ The API tests don't need Docker, the database or any secrets. They use EF Core's
 ```
 DotaDraft.Api/
   Endpoints/               Minimal API endpoints
-  Authentication/          X-Admin-Key authentication handler and the Admin policy
-  Services/                Counter ranking, hero ingestion, the seeding background job
+  Services/                Counter ranking, hero and matchup seeding, the background seeding worker
   Integrations/OpenDota/   OpenDota HTTP client (with retries), its DTOs and options
   Dtos/                    This API's response contracts
   Models/, Data/           EF Core entities and DbContext
