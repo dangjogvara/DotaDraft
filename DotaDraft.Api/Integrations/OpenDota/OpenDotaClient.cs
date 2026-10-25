@@ -11,9 +11,6 @@ public class OpenDotaClient(HttpClient httpClient) : IOpenDotaClient
     public Task<IReadOnlyList<OpenDotaHeroDto>> GetHeroStatsAsync(CancellationToken ct = default) =>
         GetListAsync<OpenDotaHeroDto>("api/heroStats", ct);
 
-    public Task<IReadOnlyList<OpenDotaMatchupDto>> GetHeroMatchupsAsync(int heroId, CancellationToken ct = default) =>
-        GetListAsync<OpenDotaMatchupDto>($"api/heroes/{heroId}/matchups", ct);
-
     public async Task<long> GetLatestPublicMatchIdAsync(CancellationToken ct = default)
     {
         var rows = await QueryExplorerAsync<OpenDotaMatchIdRow>("SELECT max(match_id) AS match_id FROM public_matches", ct);

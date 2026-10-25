@@ -28,13 +28,12 @@ npx ng build
 - CI (`.github/workflows/ci.yml`) must pass before merging. Check it with `gh pr checks <pr> --watch`.
 - Merge with `gh pr merge --squash --delete-branch`, then return to `main`.
 - Ask before committing, opening a PR or merging.
-- When a change makes or reverses a significant design decision, add a record to `docs/adr/` (see its README for the format), or mark the old one superseded.
 
 ## Verifying changes
 
 - Add tests for behaviour changes, and check that a new test fails against the old code.
 - For changes to endpoints, seeding or config, also run the API against the local Postgres and exercise the change with curl.
-- A full matchup seed takes about 1.5 minutes (about 16 OpenDota requests; 3 minutes and 128 requests with `Matchups:Source=Pro`) and replaces the whole matchup table, so only run one when the change needs it.
+- A full matchup seed takes about 1.5 minutes (about 16 OpenDota requests) and replaces the whole matchup table, so only run one when the change needs it.
 
 ## Code conventions
 
@@ -43,7 +42,7 @@ npx ng build
 - `Authentication/`: `AdminKeyAuthenticationHandler` (the `AdminKey` scheme: fixed-time comparison of `X-Admin-Key` with `Admin:ApiKey`, failing while the key is unset) and the `Admin` policy, registered via `AddAdminKeyAuthentication()`. Admin endpoints use `RequireAuthorization(AdminKeyDefaults.PolicyName)`; `AdminKeySecuritySchemeTransformer` describes the key in the OpenAPI document.
 - `Dtos/` holds this API's response contracts. Return DTOs, never EF entities.
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
-- `Services/`: `CounterService` (the counter queries behind both counter endpoints; `CounterRanking` holds the formula), `HeroIngestionService` (scoped seeding of heroes, and of matchups through the `IMatchupSource` that `Matchups:Source` selects: `MatchupSources/ProMatchupSource` upserts per hero, `PublicMatchupSource` does a windowed whole-table replace; registered via `AddHeroIngestion()`), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding; the job takes `TimeProvider` for its timestamps).
+- `Services/`: `CounterService` (the counter queries behind both counter endpoints; `CounterRanking` holds the formula), `HeroIngestionService` (scoped seeding of heroes, and of matchups from public matches via `/explorer` as a windowed whole-table replace), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding; the job takes `TimeProvider` for its timestamps).
 - Endpoints stay thin: bind, call a service, map the result to `TypedResults`. No repository layer: `AppDbContext` is used directly in services.
 - Request validation uses data annotations on handler parameters (`AddValidation()`); checks that need the database go in the service, and the handler maps their result to a `ValidationProblem` or `Problem`.
 - Settings are options classes with a `SectionName`, documented defaults and data-annotation ranges, registered with `ValidateDataAnnotations().ValidateOnStart()`. Keep `appsettings.json` and the README's configuration table in sync.
@@ -67,5 +66,5 @@ npx ng build
 
 - `docker exec` needs `-i` to receive SQL on stdin (heredocs). Without it, psql silently runs nothing.
 - To stop a background API, use `kill -TERM $(pgrep -x DotaDraft.Api)`. To stop `ng serve`, use `kill -TERM $(lsof -ti tcp:4200)`. Never use `pkill -f` or `pgrep -f` with a pattern that appears in your own command, because it matches and kills the shell running it. SIGINT is ignored by processes started in the background.
-- OpenDota's free tier allows 60 requests/minute and roughly 3,000/day, and still sends occasional bursts of 429s. Its OpenAPI spec is at `https://api.opendota.com/api`. Public matchups come from SQL sent to `/explorer`: filter `public_matches` by `match_id` range (a `start_time` filter times out), and keep each query under its ~15s statement timeout. The `Pro` source has small samples (a median of about 45 games per matchup).
+- OpenDota's free tier allows 60 requests/minute and roughly 3,000/day, and still sends occasional bursts of 429s. Its OpenAPI spec is at `https://api.opendota.com/api`. Public matchups come from SQL sent to `/explorer`: filter `public_matches` by `match_id` range (a `start_time` filter times out), and keep each query under its ~15s statement timeout.
 - Before applying a migration to the local DB, check `__EFMigrationsHistory`. The local DB once had an orphan migration that was never committed.

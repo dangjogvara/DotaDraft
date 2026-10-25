@@ -33,13 +33,7 @@ public class MatchupSeedWorker(
             await using var scope = scopeFactory.CreateAsyncScope();
             var ingestion = scope.ServiceProvider.GetRequiredService<HeroIngestionService>();
 
-            var result = await ingestion.SeedMatchupsAsync(stoppingToken);
-
-            // The pro source stops early and returns what it saved when cancelled between heroes
-            if (stoppingToken.IsCancellationRequested)
-                job.MarkFailed("Cancelled because the application is shutting down.", result);
-            else
-                job.MarkFinished(result);
+            job.MarkFinished(await ingestion.SeedMatchupsAsync(stoppingToken));
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

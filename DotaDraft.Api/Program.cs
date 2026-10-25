@@ -69,7 +69,7 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
 
 builder.Services.AddScoped<CounterService>();
-builder.Services.AddHeroIngestion();
+builder.Services.AddScoped<HeroIngestionService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<MatchupSeedJob>();
 builder.Services.AddHostedService<MatchupSeedWorker>();

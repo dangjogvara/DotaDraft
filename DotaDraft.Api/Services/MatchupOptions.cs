@@ -6,9 +6,6 @@ public class MatchupOptions
 {
     public const string SectionName = "Matchups";
 
-    [EnumDataType(typeof(MatchupSource))]
-    public MatchupSource Source { get; set; } = MatchupSource.Public;
-
     /// <summary>
     /// Match IDs per explorer query. Larger windows hit the explorer's ~15s statement timeout
     /// (200,000 IDs took about 6s when measured).

@@ -7,7 +7,8 @@ namespace DotaDraft.Api.Tests.Integrations;
 
 public class OpenDotaClientTests
 {
-    private const string MatchupsJson = """[{"hero_id":2,"games_played":10,"wins":5}]""";
+    private const string HeroesJson =
+        """[{"id":2,"name":"npc_dota_hero_axe","localized_name":"Axe","primary_attr":"str","roles":["Initiator"],"img":null}]""";
 
     private readonly StubHandler _handler = new();
 
@@ -45,21 +46,21 @@ public class OpenDotaClientTests
     {
         _handler.Responses.Enqueue(TooManyRequests());
         _handler.Responses.Enqueue(TooManyRequests());
-        _handler.Responses.Enqueue(Json(MatchupsJson));
+        _handler.Responses.Enqueue(Json(HeroesJson));
 
-        var matchups = await CreateClient().GetHeroMatchupsAsync(1);
+        var heroes = await CreateClient().GetHeroStatsAsync();
 
         Assert.Equal(3, _handler.Requests);
-        Assert.Equal(2, Assert.Single(matchups).HeroId);
+        Assert.Equal(2, Assert.Single(heroes).Id);
     }
 
     [Fact]
     public async Task RetriesOnServerError()
     {
         _handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.BadGateway));
-        _handler.Responses.Enqueue(Json(MatchupsJson));
+        _handler.Responses.Enqueue(Json(HeroesJson));
 
-        await CreateClient().GetHeroMatchupsAsync(1);
+        await CreateClient().GetHeroStatsAsync();
 
         Assert.Equal(2, _handler.Requests);
     }
@@ -70,7 +71,7 @@ public class OpenDotaClientTests
         for (var i = 0; i < 3; i++)
             _handler.Responses.Enqueue(TooManyRequests());
 
-        await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient(maxRetryAttempts: 2).GetHeroMatchupsAsync(1));
+        await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient(maxRetryAttempts: 2).GetHeroStatsAsync());
         Assert.Equal(3, _handler.Requests);
     }
 
@@ -79,7 +80,7 @@ public class OpenDotaClientTests
     {
         _handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.NotFound));
 
-        await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient().GetHeroMatchupsAsync(1));
+        await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient().GetHeroStatsAsync());
         Assert.Equal(1, _handler.Requests);
     }
 
@@ -87,10 +88,10 @@ public class OpenDotaClientTests
     public async Task HonoursRetryAfter()
     {
         _handler.Responses.Enqueue(TooManyRequests(TimeSpan.FromSeconds(1)));
-        _handler.Responses.Enqueue(Json(MatchupsJson));
+        _handler.Responses.Enqueue(Json(HeroesJson));
 
         var stopwatch = Stopwatch.StartNew();
-        await CreateClient().GetHeroMatchupsAsync(1);
+        await CreateClient().GetHeroStatsAsync();
 
         // The configured base delay is 1 ms, so only Retry-After explains a wait this long
         Assert.True(stopwatch.ElapsedMilliseconds >= 900, $"Elapsed {stopwatch.ElapsedMilliseconds} ms");
@@ -104,16 +105,16 @@ public class OpenDotaClientTests
         // Fails with a cancellation instead of hanging for an hour if the long Retry-After is honoured
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await Assert.ThrowsAsync<OpenDotaException>(
-            () => CreateClient(retryMaxDelayMs: 50).GetHeroMatchupsAsync(1, cts.Token));
+            () => CreateClient(retryMaxDelayMs: 50).GetHeroStatsAsync(cts.Token));
         Assert.Equal(1, _handler.Requests);
     }
 
     [Fact]
     public async Task SendsApiKeyAsBearerToken_NotInUrl()
     {
-        _handler.Responses.Enqueue(Json(MatchupsJson));
+        _handler.Responses.Enqueue(Json(HeroesJson));
 
-        await CreateClient(apiKey: "secret-key").GetHeroMatchupsAsync(1);
+        await CreateClient(apiKey: "secret-key").GetHeroStatsAsync();
 
         var request = _handler.LastRequest!;
         Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
@@ -124,9 +125,9 @@ public class OpenDotaClientTests
     [Fact]
     public async Task SendsNoAuthorizationHeader_WithoutApiKey()
     {
-        _handler.Responses.Enqueue(Json(MatchupsJson));
+        _handler.Responses.Enqueue(Json(HeroesJson));
 
-        await CreateClient().GetHeroMatchupsAsync(1);
+        await CreateClient().GetHeroStatsAsync();
 
         Assert.Null(_handler.LastRequest!.Headers.Authorization);
     }
