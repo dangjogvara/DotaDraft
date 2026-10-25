@@ -114,6 +114,12 @@ public class OpenApiDocumentTests : IAsyncLifetime
     }
 
     [Fact]
+    public void HealthCheck_IsNotInTheDocument()
+    {
+        Assert.Null(_document["paths"]!["/health"]);
+    }
+
+    [Fact]
     public async Task ApiReference_IsServedInDevelopment()
     {
         var response = await _factory.CreateClient().GetAsync("/scalar");

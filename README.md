@@ -101,8 +101,11 @@ curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/
 | `POST` | `/api/admin/seed-heroes` | `X-Admin-Key` | Fetch and upsert heroes from OpenDota |
 | `POST` | `/api/admin/seed-matchups` | `X-Admin-Key` | Queue a matchup seeding job; returns `202` with a `Location` header |
 | `GET` | `/api/admin/seed-matchups/status` | `X-Admin-Key` | State of the latest seeding job |
+| `GET` | `/health` | none | `Healthy` (200) when the API can reach the database, otherwise `Unhealthy` (503) |
 
 In Development, the OpenAPI document is at `/openapi/v1.json` and a browsable API reference, where you can try each endpoint, is at [`/scalar`](http://localhost:8080/scalar). Both describe every response type and come from the endpoints' `///` comments.
+
+`/health` is meant for uptime monitors and hosting platforms. It answers in plain text, isn't listed in the OpenAPI document, and is the same in every environment.
 
 Example requests are in [`DotaDraft.Api/DotaDraft.Api.http`](DotaDraft.Api/DotaDraft.Api.http). It reads the admin key from the `DOTADRAFT_ADMIN_KEY` environment variable.
 

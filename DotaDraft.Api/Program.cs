@@ -64,6 +64,10 @@ builder.Services.AddCors(options => options.AddPolicy(AngularClientCorsPolicy, p
 
 builder.Services.AddAdminKeyAuthentication();
 
+// /health reports Unhealthy (503) when the database can't be reached
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>();
+
 builder.Services.AddScoped<CounterService>();
 builder.Services.AddHeroIngestion();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -96,6 +100,8 @@ app.UseAuthorization();
 app.RegisterHeroEndpoints();
 app.RegisterDraftEndpoints();
 app.RegisterAdminEndpoints();
+
+app.MapHealthChecks("/health");
 
 app.Run();
 

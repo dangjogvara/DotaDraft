@@ -23,3 +23,6 @@ X-Admin-Key: {{AdminKey}}
 GET {{HostAddress}}/api/admin/seed-matchups/status
 X-Admin-Key: {{AdminKey}}
 Accept: application/json
+
+### Health: "Healthy" (200) when the database is reachable, "Unhealthy" (503) otherwise
+GET {{HostAddress}}/health
