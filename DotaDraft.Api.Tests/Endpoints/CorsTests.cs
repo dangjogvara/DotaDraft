@@ -22,7 +22,7 @@ public class CorsTests : IAsyncLifetime
 
     private static HttpRequestMessage Preflight(string origin, string method, string? headers = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Options, "/api/admin/seed-heroes");
+        var request = new HttpRequestMessage(HttpMethod.Options, "/api/heroes");
         request.Headers.Add("Origin", origin);
         request.Headers.Add("Access-Control-Request-Method", method);
         if (headers is not null)
@@ -56,23 +56,22 @@ public class CorsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Preflight_AllowsPostWithAdminKeyHeader()
+    public async Task Preflight_AllowsGet()
     {
-        var response = await _client.SendAsync(Preflight(AllowedOrigin, "POST", "x-admin-key"));
+        var response = await _client.SendAsync(Preflight(AllowedOrigin, "GET"));
 
         Assert.Equal(AllowedOrigin, Header(response, "Access-Control-Allow-Origin"));
-        Assert.Contains("POST", Header(response, "Access-Control-Allow-Methods"));
-        Assert.Contains("X-Admin-Key", Header(response, "Access-Control-Allow-Headers"), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("GET", Header(response, "Access-Control-Allow-Methods"));
     }
 
     [Fact]
     public async Task Preflight_RejectsOtherOrigins_AndUnlistedMethods()
     {
-        var otherOrigin = await _client.SendAsync(Preflight("http://evil.test", "POST"));
-        var deleteMethod = await _client.SendAsync(Preflight(AllowedOrigin, "DELETE"));
+        var otherOrigin = await _client.SendAsync(Preflight("http://evil.test", "GET"));
+        var postMethod = await _client.SendAsync(Preflight(AllowedOrigin, "POST"));
 
         Assert.Null(Header(otherOrigin, "Access-Control-Allow-Origin"));
-        // ASP.NET Core answers with the allowed list rather than refusing; the browser then blocks DELETE
-        Assert.DoesNotContain("DELETE", Header(deleteMethod, "Access-Control-Allow-Methods"));
+        // ASP.NET Core answers with the allowed list rather than refusing; the browser then blocks POST
+        Assert.DoesNotContain("POST", Header(postMethod, "Access-Control-Allow-Methods"));
     }
 }

@@ -90,8 +90,8 @@ public class HeroIngestionService(
         var heroes = await db.Heroes.AsNoTracking().OrderBy(h => h.Id).ToListAsync(ct);
         if (heroes.Count == 0)
         {
-            logger.LogWarning("Cannot seed matchups: Heroes table is empty. Seed heroes first.");
-            return SeedResult.Failed(SeedFailure.MissingPrerequisite, "Heroes table is empty. Seed heroes first.");
+            logger.LogWarning("Cannot seed matchups: the Heroes table is empty.");
+            return SeedResult.Failed(SeedFailure.MissingPrerequisite, "The Heroes table is empty, so there are no heroes to seed matchups for.");
         }
 
         var validHeroIds = heroes.Select(h => h.Id).ToHashSet();

@@ -33,16 +33,15 @@ npx ng build
 
 - Add tests for behaviour changes, and check that a new test fails against the old code.
 - For changes to endpoints, seeding or config, also run the API against the local Postgres and exercise the change with curl.
-- A full matchup seed takes about 1.5 minutes (about 16 OpenDota requests) and replaces the whole matchup table, so only run one when the change needs it.
+- Seeding runs in the background: at startup when `HeroMatchups` is empty, then every `Seeding:IntervalHours`. A full seed takes about 1.5 minutes (about 16 OpenDota requests) and replaces the whole matchup table, so only trigger one when the change needs it: truncate `HeroMatchups` and restart the API (see the README's Seeding section).
 
 ## Code conventions
 
 - One top-level type (class, record, enum or interface) per file, named after the type, e.g. `SeedFailure` in `SeedFailure.cs`.
 - `Endpoints/`: one static class per area, registered from `Program.cs`. Handlers return `TypedResults` with typed return types (`Results<Ok<T>, ProblemHttpResult>`), and are mapped with `WithName`, `WithTags` and `ProducesProblem` for status codes the types can't express. Handlers are `internal`, not `private`, so their `///` summaries reach the OpenAPI document (`/openapi/v1.json`, browsable at `/scalar` in Development). Every error is ProblemDetails: return `TypedResults.Problem`/`ValidationProblem`; empty status codes and unhandled exceptions are converted by `UseStatusCodePages`/`UseExceptionHandler` (exception details only in Development).
-- `Authentication/`: `AdminKeyAuthenticationHandler` (the `AdminKey` scheme: fixed-time comparison of `X-Admin-Key` with `Admin:ApiKey`, failing while the key is unset) and the `Admin` policy, registered via `AddAdminKeyAuthentication()`. Admin endpoints use `RequireAuthorization(AdminKeyDefaults.PolicyName)`; `AdminKeySecuritySchemeTransformer` describes the key in the OpenAPI document.
 - `Dtos/` holds this API's response contracts. Return DTOs, never EF entities.
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
-- `Services/`: `CounterService` (the counter queries behind both counter endpoints; `CounterRanking` holds the formula), `HeroIngestionService` (scoped seeding of heroes, and of matchups from public matches via `/explorer` as a windowed whole-table replace), `MatchupSeedJob`/`MatchupSeedWorker` (background seeding; the job takes `TimeProvider` for its timestamps).
+- `Services/`: `CounterService` (the counter queries behind both counter endpoints; `CounterRanking` holds the formula), `HeroIngestionService` (scoped seeding of heroes, and of matchups from public matches via `/explorer` as a windowed whole-table replace), `SeedingWorker` (a `BackgroundService` that seeds heroes then matchups at startup if there are no matchups, then on a `PeriodicTimer` driven by `TimeProvider`, so tests use `FakeTimeProvider`).
 - Endpoints stay thin: bind, call a service, map the result to `TypedResults`. No repository layer: `AppDbContext` is used directly in services.
 - Request validation uses data annotations on handler parameters (`AddValidation()`); checks that need the database go in the service, and the handler maps their result to a `ValidationProblem` or `Problem`.
 - Settings are options classes with a `SectionName`, documented defaults and data-annotation ranges, registered with `ValidateDataAnnotations().ValidateOnStart()`. Keep `appsettings.json` and the README's configuration table in sync.
@@ -55,12 +54,8 @@ npx ng build
 
 ## Secrets
 
-- The connection string, `Admin:ApiKey` and `OpenDota:ApiKey` live in user-secrets. The Postgres password lives in the gitignored `.env`. Never commit them.
+- The connection string and `OpenDota:ApiKey` live in user-secrets. The Postgres password lives in the gitignored `.env`. Never commit them.
 - Never print secret values: hide them when listing (`dotnet user-secrets list --project DotaDraft.Api | sed -E 's/ = .*/ = <hidden>/'`), and pass them through shell variables.
-- Admin endpoints need the `X-Admin-Key` header:
-  ```bash
-  KEY="$(dotnet user-secrets list --project DotaDraft.Api | sed -n 's/^Admin:ApiKey = //p')"
-  ```
 
 ## Gotchas
 

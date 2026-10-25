@@ -13,6 +13,7 @@ public class OptionsValidationTests
     [InlineData("Matchups:WindowCount", "0")]
     [InlineData("Matchups:MinAvgRankTier", "5")]
     [InlineData("Counters:PriorGames", "-1")]
+    [InlineData("Seeding:IntervalHours", "0")]
     public void InvalidSetting_FailsStartup(string key, string value)
     {
         using var factory = new DotaDraftApiFactory().WithWebHostBuilder(b => b.UseSetting(key, value));

@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using DotaDraft.Api.Authentication;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotaDraft.Api.Tests.Endpoints;
@@ -8,7 +7,8 @@ namespace DotaDraft.Api.Tests.Endpoints;
 // Every error, whether returned explicitly, an empty status code or an unhandled exception, is ProblemDetails
 public class ErrorResponseTests
 {
-    private const string BugMessage = "Simulated bug with internal details";
+    // Part of the connection failure's message, so it shows whether exception details leaked
+    private const string InternalDetail = "127.0.0.1:1";
 
     private static async Task<ProblemDetails> AssertProblem(HttpResponseMessage response, HttpStatusCode status)
     {
@@ -19,10 +19,10 @@ public class ErrorResponseTests
         return problem;
     }
 
-    private static Task<HttpResponseMessage> SeedHeroes(DotaDraftApiFactory factory)
+    // Asks for JSON, so the developer exception page answers with ProblemDetails rather than HTML
+    private static Task<HttpResponseMessage> GetHeroes(DotaDraftApiFactory factory)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/seed-heroes");
-        request.Headers.Add(AdminKeyDefaults.HeaderName, DotaDraftApiFactory.AdminKey);
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/heroes");
         request.Headers.Accept.ParseAdd("application/json");
         return factory.CreateClient().SendAsync(request);
     }
@@ -52,36 +52,24 @@ public class ErrorResponseTests
     }
 
     [Fact]
-    public async Task MissingAdminKey_ReturnsUnauthorizedProblem()
-    {
-        await using var factory = new DotaDraftApiFactory();
-
-        var response = await factory.CreateClient().PostAsync("/api/admin/seed-heroes", null);
-
-        await AssertProblem(response, HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task UnhandledException_ReturnsServerErrorProblem_WithoutDetailsOutsideDevelopment()
     {
-        await using var factory = new DotaDraftApiFactory(environment: "Production");
-        factory.OpenDota.HeroStatsBug = new InvalidOperationException(BugMessage);
+        await using var factory = new DotaDraftApiFactory(environment: "Production", unreachableDatabase: true);
 
-        var response = await SeedHeroes(factory);
+        var response = await GetHeroes(factory);
 
         await AssertProblem(response, HttpStatusCode.InternalServerError);
-        Assert.DoesNotContain(BugMessage, await response.Content.ReadAsStringAsync());
+        Assert.DoesNotContain(InternalDetail, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
     public async Task UnhandledException_IncludesDetailsInDevelopment()
     {
-        await using var factory = new DotaDraftApiFactory();
-        factory.OpenDota.HeroStatsBug = new InvalidOperationException(BugMessage);
+        await using var factory = new DotaDraftApiFactory(unreachableDatabase: true);
 
-        var response = await SeedHeroes(factory);
+        var response = await GetHeroes(factory);
 
         await AssertProblem(response, HttpStatusCode.InternalServerError);
-        Assert.Contains(BugMessage, await response.Content.ReadAsStringAsync());
+        Assert.Contains(InternalDetail, await response.Content.ReadAsStringAsync());
     }
 }
