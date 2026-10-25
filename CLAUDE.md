@@ -28,6 +28,7 @@ npx ng build
 - CI (`.github/workflows/ci.yml`) must pass before merging. Check it with `gh pr checks <pr> --watch`.
 - Merge with `gh pr merge --squash --delete-branch`, then return to `main`.
 - Ask before committing, opening a PR or merging.
+- When a change makes or reverses a significant design decision, add a record to `docs/adr/` (see its README for the format), or mark the old one superseded.
 
 ## Verifying changes
 

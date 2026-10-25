@@ -93,6 +93,8 @@ curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/
 
 ## API
 
+The full API reference, with every parameter, response and schema, is the OpenAPI document. It's generated from the code, so it can't drift from it. Run the API in Development and open [`/scalar`](http://localhost:8080/scalar) to browse it and try each endpoint, or fetch the raw document at `/openapi/v1.json`. Its descriptions come from the endpoints' and DTOs' `///` comments. This table is only an overview:
+
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/heroes` | none | All heroes, sorted by name |
@@ -102,8 +104,6 @@ curl -H "X-Admin-Key: $ADMIN_KEY" http://localhost:8080/api/admin/seed-matchups/
 | `POST` | `/api/admin/seed-matchups` | `X-Admin-Key` | Queue a matchup seeding job; returns `202` with a `Location` header |
 | `GET` | `/api/admin/seed-matchups/status` | `X-Admin-Key` | State of the latest seeding job |
 | `GET` | `/health` | none | `Healthy` (200) when the API can reach the database, otherwise `Unhealthy` (503) |
-
-In Development, the OpenAPI document is at `/openapi/v1.json` and a browsable API reference, where you can try each endpoint, is at [`/scalar`](http://localhost:8080/scalar). Both describe every response type and come from the endpoints' `///` comments.
 
 `/health` is meant for uptime monitors and hosting platforms. It answers in plain text, isn't listed in the OpenAPI document, and is the same in every environment.
 
@@ -159,6 +159,10 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 
 **CORS:** in Development, the Angular dev server (`ng serve` on port 4200) can call the API directly. In production, no origins are allowed until you configure them, for example `Cors__AllowedOrigins__0=https://your-app.example.com`. Serve the API over HTTPS there, since the admin key travels in a header.
 
+## Design decisions
+
+[`docs/adr/`](docs/adr/README.md) records why the code looks the way it does, for example why matchups come from public matches, how the ranking's `k` was chosen, and why there's no repository layer.
+
 ## Tests
 
 GitHub Actions (`.github/workflows/ci.yml`) runs both suites, the Angular build, and a check that the EF model has no changes without a migration, on every pull request and every push to `main`. To run them locally:
@@ -183,6 +187,7 @@ DotaDraft.Api/
   Models/, Data/           EF Core entities and DbContext
   Migrations/              EF Core migrations
 DotaDraft.Api.Tests/       xUnit tests
+docs/adr/                  Architecture decision records
 DotaDraft.Web/             Angular client (Tailwind CSS, Vitest)
   src/app/heroes/          API models and HeroApiService
   src/environments/        API base URL per build configuration
