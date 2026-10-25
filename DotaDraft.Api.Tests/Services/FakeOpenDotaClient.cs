@@ -5,10 +5,6 @@ namespace DotaDraft.Api.Tests.Services;
 public class FakeOpenDotaClient : IOpenDotaClient
 {
     public List<OpenDotaHeroDto> Heroes { get; } = [];
-    public Dictionary<int, List<OpenDotaMatchupDto>> Matchups { get; } = [];
-
-    // Hero IDs whose matchup requests fail as an upstream error
-    public HashSet<int> FailingHeroIds { get; } = [];
     public bool FailHeroStats { get; set; }
     // Thrown as-is, to simulate a bug rather than an upstream failure
     public Exception? HeroStatsBug { get; set; }
@@ -30,13 +26,6 @@ public class FakeOpenDotaClient : IOpenDotaClient
         if (FailHeroStats)
             throw new OpenDotaException("Simulated failure.", new HttpRequestException());
         return Task.FromResult<IReadOnlyList<OpenDotaHeroDto>>(Heroes);
-    }
-
-    public Task<IReadOnlyList<OpenDotaMatchupDto>> GetHeroMatchupsAsync(int heroId, CancellationToken ct = default)
-    {
-        if (FailingHeroIds.Contains(heroId))
-            throw new OpenDotaException("Simulated failure.", new HttpRequestException());
-        return Task.FromResult<IReadOnlyList<OpenDotaMatchupDto>>(Matchups.GetValueOrDefault(heroId) ?? []);
     }
 
     public Task<long> GetLatestPublicMatchIdAsync(CancellationToken ct = default)

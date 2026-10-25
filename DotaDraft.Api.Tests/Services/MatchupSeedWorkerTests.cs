@@ -21,10 +21,10 @@ public class MatchupSeedWorkerTests : IAsyncLifetime
             .AddLogging()
             .AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(dbName))
             .Configure<OpenDotaOptions>(o => o.MatchupRequestDelayMs = 0)
-            .Configure<MatchupOptions>(o => o.Source = MatchupSource.Pro)
+            .Configure<MatchupOptions>(o => o.WindowCount = 1)
             .AddSingleton<IOpenDotaClient>(_client)
             .AddSingleton(TimeProvider.System)
-            .AddHeroIngestion()
+            .AddScoped<HeroIngestionService>()
             .AddSingleton<MatchupSeedJob>()
             .AddSingleton<MatchupSeedWorker>()
             .BuildServiceProvider();
@@ -67,8 +67,7 @@ public class MatchupSeedWorkerTests : IAsyncLifetime
     public async Task QueuedRequest_RunsSeedingAndRecordsResult()
     {
         AddHeroes(1, 2);
-        _client.Matchups[1] = [new(2, 10, 5)];
-        _client.Matchups[2] = [new(1, 10, 5)];
+        _client.PublicMatchups[_client.LatestPublicMatchId] = [new(1, 2, 10, 5), new(2, 1, 10, 5)];
 
         Assert.True(_job.TryEnqueue());
         var status = await WaitForFinishAsync();
@@ -88,7 +87,7 @@ public class MatchupSeedWorkerTests : IAsyncLifetime
         Assert.Equal(SeedFailure.MissingPrerequisite, failed.Result?.Failure);
 
         AddHeroes(1, 2);
-        _client.Matchups[1] = [new(2, 10, 5)];
+        _client.PublicMatchups[_client.LatestPublicMatchId] = [new(1, 2, 10, 5)];
         Assert.True(_job.TryEnqueue());
         var succeeded = await WaitForFinishAsync();
         Assert.Equal(SeedJobState.Succeeded, succeeded.State);

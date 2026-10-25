@@ -6,8 +6,7 @@ namespace DotaDraft.Api.Dtos;
 /// <param name="StartedAt">When the background worker picked it up.</param>
 /// <param name="FinishedAt">When it succeeded or failed.</param>
 /// <param name="Saved">Matchup rows inserted or updated.</param>
-/// <param name="FailedHeroIds">Heroes whose matchups couldn't be fetched or saved (Pro source).</param>
-/// <param name="FailedWindows">Match ID windows that couldn't be fetched (Public source).</param>
+/// <param name="FailedWindows">Match ID windows that couldn't be fetched.</param>
 /// <param name="Error">Why the job failed, if it did.</param>
 public record MatchupSeedStatusDto(
     string State,
@@ -15,7 +14,6 @@ public record MatchupSeedStatusDto(
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
     int? Saved,
-    IReadOnlyList<int>? FailedHeroIds,
     int? FailedWindows,
     string? Error
 );

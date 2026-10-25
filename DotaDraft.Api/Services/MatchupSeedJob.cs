@@ -50,14 +50,14 @@ public class MatchupSeedJob(TimeProvider time)
             };
     }
 
-    public void MarkFailed(string error, SeedResult? result = null)
+    public void MarkFailed(string error)
     {
         lock (_lock)
             _status = _status with
             {
                 State = SeedJobState.Failed,
                 FinishedAt = time.GetUtcNow(),
-                Result = result,
+                Result = null,
                 Error = error
             };
     }

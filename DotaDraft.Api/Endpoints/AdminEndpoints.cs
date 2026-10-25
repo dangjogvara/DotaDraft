@@ -51,7 +51,7 @@ public static class AdminEndpoints
     // Matchup seeding takes minutes, so it is queued for MatchupSeedWorker instead of run in the request
     /// <summary>Queue a matchup seeding job.</summary>
     /// <remarks>
-    /// Returns at once; poll the status endpoint in the Location header. The source is set by Matchups:Source.
+    /// Returns at once; poll the status endpoint in the Location header.
     /// Returns 409 while a job is queued or running.
     /// </remarks>
     internal static Results<Accepted<MatchupSeedStatusDto>, ProblemHttpResult> SeedMatchups(MatchupSeedJob job)
@@ -76,7 +76,6 @@ public static class AdminEndpoints
         status.StartedAt,
         status.FinishedAt,
         status.Result?.Saved,
-        status.Result?.FailedHeroIds,
         status.Result?.FailedWindows,
         status.Error);
 
@@ -89,10 +88,8 @@ public static class AdminEndpoints
             _ => StatusCodes.Status500InternalServerError
         };
 
-        // Report rows that were still saved, since a matchup run continues past per-hero failures
+        // Report rows that were still saved, since a matchup run continues past failed windows
         var extensions = new Dictionary<string, object?> { ["saved"] = result.Saved };
-        if (result.FailedHeroIds.Count > 0)
-            extensions["failedHeroIds"] = result.FailedHeroIds;
         if (result.FailedWindows > 0)
             extensions["failedWindows"] = result.FailedWindows;
 
