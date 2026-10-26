@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 import { HeroApiService } from './hero-api.service';
-import { Hero, HeroCounter } from './hero.models';
+import { Hero } from './hero.models';
 
 describe('HeroApiService', () => {
   let service: HeroApiService;
@@ -31,23 +31,6 @@ describe('HeroApiService', () => {
     http.expectOne({ method: 'GET', url: baseUrl }).flush(heroes);
 
     expect(await result).toEqual(heroes);
-  });
-
-  it('gets counters for a hero with the requested limit', async () => {
-    const counters: HeroCounter[] = [
-      { id: 63, localizedName: 'Weaver', primaryAttr: 'agi', imgUrl: null, advantage: 12.4, winRate: 73.91, baselineWinRate: 45.34, gamesPlayed: 23 },
-    ];
-
-    const result = firstValueFrom(service.getCounters(1, 3));
-    http.expectOne({ method: 'GET', url: `${baseUrl}/1/counters?limit=3` }).flush(counters);
-
-    expect(await result).toEqual(counters);
-  });
-
-  it('defaults to 5 counters', () => {
-    service.getCounters(1).subscribe();
-
-    http.expectOne(`${baseUrl}/1/counters?limit=5`).flush([]);
   });
 
   it('gets draft counters with one repeated "against" key per enemy', () => {

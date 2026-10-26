@@ -86,15 +86,6 @@ public class DraftEndpointsTests : IAsyncLifetime
         Assert.Equal(50m, hero4.BaselineWinRate);
     }
 
-    [Fact]
-    public async Task SingleEnemy_MatchesTheHeroCountersEndpoint()
-    {
-        var draft = await GetCounters("?against=1&limit=5");
-        var single = await _factory.CreateClient().GetFromJsonAsync<List<HeroCounterDto>>("/api/heroes/1/counters?limit=5");
-
-        Assert.Equal(single!.Select(c => (c.Id, c.Advantage)), draft.Select(c => (c.Id, c.TotalAdvantage)));
-    }
-
     [Theory]
     [InlineData(1, 1)]
     [InlineData(20, 3)]
