@@ -64,6 +64,8 @@ Secrets never live in the repo. The database password goes in a gitignored `.env
 
    In development it calls the API at `http://localhost:8080` (set in `src/environments/environment.development.ts`). CORS already allows the dev server's origin.
 
+   The enemy lineup is kept in the URL, e.g. `http://localhost:4200/?against=1,14`, so a refresh keeps your picks and you can share a draft as a link.
+
 ## Seeding
 
 The API fills the database itself, in the background:

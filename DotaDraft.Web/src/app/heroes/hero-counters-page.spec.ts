@@ -1,6 +1,9 @@
+import { PlatformLocation } from '@angular/common';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 
 import { environment } from '../../environments/environment';
 import { HeroCountersPage } from './hero-counters-page';
@@ -33,22 +36,34 @@ const weaver: DraftCounter = {
 };
 
 describe('HeroCountersPage', () => {
-  let fixture: ComponentFixture<HeroCountersPage>;
+  let harness: RouterTestingHarness;
   let http: HttpTestingController;
+
+  // Opens the page through the router, as the app does, so it can read and update the URL
+  async function open(url = '/') {
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl(url, HeroCountersPage);
+  }
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [HeroCountersPage],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: '', component: HeroCountersPage }]),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
-    fixture = TestBed.createComponent(HeroCountersPage);
-    fixture.detectChanges();
   });
 
   afterEach(() => http.verify());
 
-  const el = () => fixture.nativeElement as HTMLElement;
+  const el = () => harness.routeNativeElement!;
+  /** The URL after pending navigations have finished. */
+  const url = async () => {
+    await harness.fixture.whenStable();
+    return TestBed.inject(Router).url;
+  };
   const text = (selector: string) => el().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
   const gridButton = (name: string) =>
     [...el().querySelectorAll<HTMLButtonElement>('app-hero-grid button')].find((b) =>
@@ -60,7 +75,7 @@ describe('HeroCountersPage', () => {
     [...el().querySelectorAll('[data-testid="slot"]')].map((s) => s.textContent?.replace('✕', '').trim());
 
   function render() {
-    fixture.detectChanges();
+    harness.detectChanges();
   }
 
   function loadHeroes(heroes: Hero[] = [antiMage, axe]) {
@@ -87,7 +102,8 @@ describe('HeroCountersPage', () => {
     render();
   }
 
-  it('shows a loading message, then the hero grid and an empty lineup', () => {
+  it('shows a loading message, then the hero grid and an empty lineup', async () => {
+    await open();
     expect(text('[data-testid="heroes-loading"]')).toContain('Loading heroes');
 
     loadHeroes();
@@ -97,7 +113,8 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-panel"]')).toContain('Pick up to five enemy heroes');
   });
 
-  it('shows an error with a working retry when heroes fail to load', () => {
+  it('shows an error with a working retry when heroes fail to load', async () => {
+    await open();
     http.expectOne(heroesUrl).error(new ProgressEvent('error'));
     render();
     expect(text('[data-testid="heroes-error"]')).toContain('Could not load heroes');
@@ -109,14 +126,16 @@ describe('HeroCountersPage', () => {
     expect(el().querySelectorAll('app-hero-grid button').length).toBe(2);
   });
 
-  it('explains that heroes are still loading when there are none', () => {
+  it('explains that heroes are still loading when there are none', async () => {
+    await open();
     loadHeroes([]);
 
     expect(text('[data-testid="heroes-empty"]')).toContain('loads them from OpenDota');
     expect(text('[data-testid="heroes-empty"]')).not.toMatch(/seed/i);
   });
 
-  it('adds a picked hero to the lineup and shows its counters', () => {
+  it('adds a picked hero to the lineup and shows its counters', async () => {
+    await open();
     loadHeroes();
 
     pick('Anti-Mage');
@@ -133,7 +152,8 @@ describe('HeroCountersPage', () => {
     expect(panel).toContain('+12.4');
   });
 
-  it('asks for counters to the whole lineup, in pick order', () => {
+  it('asks for counters to the whole lineup, in pick order', async () => {
+    await open();
     loadHeroes();
 
     pick('Axe');
@@ -146,7 +166,8 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-panel"]')).toContain('Counters to the enemy lineup');
   });
 
-  it('removes a hero from the lineup and makes it pickable again', () => {
+  it('removes a hero from the lineup and makes it pickable again', async () => {
+    await open();
     loadHeroes();
     pick('Anti-Mage');
     countersRequest([1]).flush([weaver]);
@@ -162,7 +183,8 @@ describe('HeroCountersPage', () => {
     expect(gridButton('Anti-Mage').disabled).toBe(false);
   });
 
-  it('clears the lineup without requesting counters', () => {
+  it('clears the lineup without requesting counters', async () => {
+    await open();
     loadHeroes();
     pick('Anti-Mage');
     countersRequest([1]).flush([weaver]);
@@ -176,7 +198,8 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-panel"]')).toContain('Pick up to five enemy heroes');
   });
 
-  it('stops at five enemies and disables the rest of the grid', () => {
+  it('stops at five enemies and disables the rest of the grid', async () => {
+    await open();
     loadHeroes(lineupOfSix);
 
     lineupOfSix.slice(0, 5).forEach((h, i) => {
@@ -189,7 +212,8 @@ describe('HeroCountersPage', () => {
     expect(text('app-lineup-slots h2')).toContain('5/5');
   });
 
-  it('ignores a slower response for an earlier lineup', () => {
+  it('ignores a slower response for an earlier lineup', async () => {
+    await open();
     loadHeroes();
 
     pick('Anti-Mage');
@@ -203,7 +227,52 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-empty"]')).not.toMatch(/seed/i);
   });
 
-  it('shows an error when counters fail to load', () => {
+  it('restores the lineup from the URL and loads its counters', async () => {
+    await open('/?against=2,1');
+    loadHeroes();
+
+    expect(slotNames().slice(0, 2)).toEqual(['Axe', 'Anti-Mage']);
+    countersRequest([2, 1]).flush([weaver]);
+    render();
+    expect(text('[data-testid="counters-panel"]')).toContain('Weaver');
+  });
+
+  it('drops unknown heroes from a restored URL', async () => {
+    await open('/?against=99,1');
+    loadHeroes();
+    countersRequest([1]).flush([]);
+
+    expect(slotNames()[0]).toBe('Anti-Mage');
+    expect(await url()).toBe('/?against=1');
+  });
+
+  it('keeps the URL in step with the lineup, without adding history entries', async () => {
+    await open();
+    loadHeroes();
+    // Tests use a fake browser location; pushState is what would add a history entry
+    const pushState = vi.spyOn(TestBed.inject(PlatformLocation), 'pushState');
+
+    pick('Axe');
+    countersRequest([2]).flush([]);
+    pick('Anti-Mage');
+    countersRequest([2, 1]).flush([]);
+    expect(await url()).toBe('/?against=2,1');
+
+    el().querySelector<HTMLButtonElement>('[aria-label="Remove Axe"]')!.click();
+    render();
+    countersRequest([1]).flush([]);
+    expect(await url()).toBe('/?against=1');
+
+    [...el().querySelectorAll<HTMLButtonElement>('app-lineup-slots button')]
+      .find((b) => b.textContent?.trim() === 'Clear')!
+      .click();
+    render();
+    expect(await url()).toBe('/');
+    expect(pushState).not.toHaveBeenCalled();
+  });
+
+  it('shows an error when counters fail to load', async () => {
+    await open();
     loadHeroes();
 
     pick('Anti-Mage');
@@ -213,7 +282,8 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-panel"]')).toContain('Could not load counters');
   });
 
-  it('groups the grid by attribute in in-game order', () => {
+  it('groups the grid by attribute in in-game order', async () => {
+    await open();
     loadHeroes();
 
     const headings = [...el().querySelectorAll('section > h2')].map((h) => h.textContent?.trim());
@@ -221,7 +291,8 @@ describe('HeroCountersPage', () => {
     expect(visibleHeroes()).toEqual(['Axe', 'Anti-Mage']);
   });
 
-  it('filters the grid by search and attribute', () => {
+  it('filters the grid by search and attribute', async () => {
+    await open();
     loadHeroes();
 
     search('anti');
@@ -235,7 +306,8 @@ describe('HeroCountersPage', () => {
     expect(visibleHeroes()).toEqual(['Axe']);
   });
 
-  it('says so when nothing matches', () => {
+  it('says so when nothing matches', async () => {
+    await open();
     loadHeroes();
 
     search('zzz');
@@ -244,7 +316,8 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="no-matches"]')).toContain('No heroes match');
   });
 
-  it('keeps the lineup and counters while filtering', () => {
+  it('keeps the lineup and counters while filtering', async () => {
+    await open();
     loadHeroes();
     pick('Anti-Mage');
     countersRequest([1]).flush([weaver]);

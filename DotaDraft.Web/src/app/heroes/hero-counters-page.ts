@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, Subject, catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { CounterList } from './counter-list';
@@ -8,6 +9,7 @@ import { PrimaryAttr, filterHeroes, groupByAttribute } from './hero-filter';
 import { HeroFilters } from './hero-filters';
 import { HeroGrid } from './hero-grid';
 import { DraftCounter, Hero } from './hero.models';
+import { LINEUP_PARAM, lineupFromParam, lineupToParam } from './lineup-param';
 import { LineupSlots, MAX_LINEUP } from './lineup-slots';
 
 type LoadState<T> = { status: 'loading' } | { status: 'loaded'; data: T } | { status: 'error' };
@@ -24,6 +26,8 @@ const loadedData = <T>(state: LoadState<T> | null): T | undefined =>
 export class HeroCountersPage {
   private readonly heroApi = inject(HeroApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly lineupChanges = new Subject<Hero[]>();
 
   protected readonly heroes = signal<LoadState<Hero[]>>({ status: 'loading' });
@@ -56,7 +60,10 @@ export class HeroCountersPage {
   protected loadHeroes(): void {
     this.heroes.set({ status: 'loading' });
     this.heroApi.getHeroes().subscribe({
-      next: (data) => this.heroes.set({ status: 'loaded', data }),
+      next: (data) => {
+        this.heroes.set({ status: 'loaded', data });
+        this.restoreLineup(data);
+      },
       error: () => this.heroes.set({ status: 'error' }),
     });
   }
@@ -77,6 +84,23 @@ export class HeroCountersPage {
   private setLineup(lineup: Hero[]): void {
     this.lineup.set(lineup);
     this.lineupChanges.next(lineup);
+
+    // Keeps the lineup in the URL, so a refresh or a shared link opens the same draft.
+    // replaceUrl stops every pick from adding a browser history entry
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { [LINEUP_PARAM]: lineupToParam(lineup) },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  // Heroes are needed to turn the URL's IDs into a lineup, so this runs once they've loaded
+  private restoreLineup(heroes: Hero[]): void {
+    if (this.lineup().length > 0) return;
+
+    const lineup = lineupFromParam(this.route.snapshot.queryParamMap.get(LINEUP_PARAM), heroes);
+    if (lineup.length > 0) this.setLineup(lineup);
   }
 
   private loadCounters(lineup: Hero[]): Observable<LoadState<DraftCounter[]>> {
