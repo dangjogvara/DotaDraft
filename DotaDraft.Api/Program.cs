@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DotaDraft.Api;
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Endpoints;
 using DotaDraft.Api.Integrations.OpenDota;
@@ -27,29 +28,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         ?? throw new InvalidOperationException(
             "ConnectionStrings:DefaultConnection is not configured. Set it with dotnet user-secrets.")));
 
-// Options are validated with their data annotations at startup, so bad configuration fails fast
-// instead of on the first request or seed
-builder.Services.AddOptions<OpenDotaOptions>()
-    .Bind(builder.Configuration.GetSection(OpenDotaOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+builder.Services.AddDotaDraftOptions(builder.Configuration);
 
 builder.Services.AddOpenDotaClient();
-
-builder.Services.AddOptions<MatchupOptions>()
-    .Bind(builder.Configuration.GetSection(MatchupOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddOptions<CounterOptions>()
-    .Bind(builder.Configuration.GetSection(CounterOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddOptions<SeedingOptions>()
-    .Bind(builder.Configuration.GetSection(SeedingOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
 
 // The Angular client runs on another origin (its dev server, or wherever it's deployed).
 // Origins come from configuration; with none configured, no cross-origin requests are allowed.

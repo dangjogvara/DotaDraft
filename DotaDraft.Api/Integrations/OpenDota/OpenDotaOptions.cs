@@ -15,7 +15,7 @@ public class OpenDotaOptions
     [Required, Url]
     public string SteamCdnBaseUrl { get; set; } = "https://cdn.cloudflare.steamstatic.com";
 
-    /// <summary>Delay between per-hero matchup requests, used to stay under OpenDota's rate limit (60/minute).</summary>
+    /// <summary>Delay between matchup requests (one per match ID window), used to stay under OpenDota's rate limit (60/minute).</summary>
     [Range(0, 60_000)]
     public int MatchupRequestDelayMs { get; set; } = 1100;
 
