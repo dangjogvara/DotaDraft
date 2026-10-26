@@ -17,7 +17,9 @@ export class CounterList {
   /** The enemy lineup, to label each counter's per-enemy breakdown. */
   readonly lineup = input.required<Hero[]>();
 
-  protected readonly enemies = computed(() => new Map(this.lineup().map((hero) => [hero.id, hero])));
+  protected readonly enemies = computed(
+    () => new Map(this.lineup().map((hero) => [hero.id, hero])),
+  );
 
   protected enemyName(id: number): string {
     return this.enemies().get(id)?.localizedName ?? 'this hero';
