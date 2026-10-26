@@ -17,7 +17,8 @@
   @case ('loaded') {
     @if (heroList().length === 0) {
       <p class="text-slate-400" data-testid="heroes-empty">
-        No heroes yet. Seed them with <code>POST /api/admin/seed-heroes</code>.
+        No heroes yet. The API loads them from OpenDota when it first starts, which takes a couple of minutes.
+        Reload the page in a moment.
       </p>
     } @else {
       <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -58,7 +59,10 @@
               }
               @case ('loaded') {
                 @if (counterList().length === 0) {
-                  <p class="text-slate-400">No matchup data for these heroes yet. Seed matchups first.</p>
+                  <p class="text-slate-400" data-testid="counters-empty">
+                    No matchup data for these heroes yet. If the API just started, it may still be loading data from
+                    OpenDota, so try again in a couple of minutes.
+                  </p>
                 } @else {
                   <app-counter-list [counters]="counterList()" [lineup]="lineup()" />
                 }

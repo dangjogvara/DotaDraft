@@ -109,10 +109,11 @@ describe('HeroCountersPage', () => {
     expect(el().querySelectorAll('app-hero-grid button').length).toBe(2);
   });
 
-  it('explains how to seed when there are no heroes', () => {
+  it('explains that heroes are still loading when there are none', () => {
     loadHeroes([]);
 
-    expect(text('[data-testid="heroes-empty"]')).toContain('seed-heroes');
+    expect(text('[data-testid="heroes-empty"]')).toContain('loads them from OpenDota');
+    expect(text('[data-testid="heroes-empty"]')).not.toMatch(/seed/i);
   });
 
   it('adds a picked hero to the lineup and shows its counters', () => {
@@ -198,7 +199,8 @@ describe('HeroCountersPage', () => {
     render();
 
     expect(first.cancelled).toBe(true);
-    expect(text('[data-testid="counters-panel"]')).toContain('No matchup data');
+    expect(text('[data-testid="counters-empty"]')).toContain('No matchup data');
+    expect(text('[data-testid="counters-empty"]')).not.toMatch(/seed/i);
   });
 
   it('shows an error when counters fail to load', () => {
