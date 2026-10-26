@@ -44,7 +44,7 @@ npx ng build
 - `Services/`: `CounterService` (the counter query behind `/api/counters`; `CounterRanking` holds the formula), `HeroIngestionService` (scoped seeding of heroes, and of matchups from public matches via `/explorer` as a windowed whole-table replace), `SeedingWorker` (a `BackgroundService` that seeds heroes then matchups at startup if there are no matchups, then on a `PeriodicTimer` driven by `TimeProvider`, so tests use `FakeTimeProvider`).
 - Endpoints stay thin: bind, call a service, map the result to `TypedResults`. No repository layer: `AppDbContext` is used directly in services.
 - Request validation uses data annotations on handler parameters (`AddValidation()`); checks that need the database go in the service, and the handler maps their result to a `ValidationProblem` or `Problem`.
-- Settings are options classes with a `SectionName`, documented defaults and data-annotation ranges, registered with `ValidateDataAnnotations().ValidateOnStart()`. Keep `appsettings.json` and the README's configuration table in sync.
+- Settings are options classes with a `SectionName`, documented defaults and data-annotation ranges, registered in `AddDotaDraftOptions()` (`OptionsServiceCollectionExtensions.cs`), which validates them at startup. `OptionsValidationTests` checks that validation through `IStartupValidator` without starting the app. Keep `appsettings.json` and the README's configuration table in sync.
 - Frontend: standalone components, signals, and Tailwind utility classes in templates. API calls go through `HeroApiService` using `environment.apiBaseUrl`. The interfaces in `hero.models.ts` mirror the C# DTOs, so change both together.
 - Tests:
   - Frontend: `provideHttpClientTesting()` with `HttpTestingController`.
