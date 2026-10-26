@@ -21,85 +21,11 @@ public class HeroEndpointsTests : IAsyncLifetime
             Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str"
         }));
 
-        // Counters for hero 1. Raw win rate would rank them 2, 3, 4:
-        // - hero 2: lucky 5 of 6 against hero 1, about average overall
-        // - hero 3: 70 of 100 against hero 1, 50% overall
-        // - hero 4: 60% against everyone, so no real advantage
-        db.HeroMatchups.AddRange(
-            Matchup(2, 1, wins: 5, games: 6), Matchup(2, 5, wins: 47, games: 94),
-            Matchup(3, 1, wins: 70, games: 100), Matchup(3, 5, wins: 30, games: 100),
-            Matchup(4, 1, wins: 60, games: 100), Matchup(4, 5, wins: 60, games: 100),
-            Matchup(5, 1, wins: 0, games: 0));
         db.SaveChanges();
         return Task.CompletedTask;
     }
 
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();
-
-    private static HeroMatchup Matchup(int heroId, int againstHeroId, int wins, int games) => new()
-    {
-        HeroId = heroId,
-        AgainstHeroId = againstHeroId,
-        Wins = wins,
-        GamesPlayed = games,
-        WinRate = games > 0 ? Math.Round((decimal)wins / games * 100m, 2) : 0m
-    };
-
-    private async Task<List<HeroCounterDto>> GetCounters(string query = "")
-    {
-        var counters = await _factory.CreateClient().GetFromJsonAsync<List<HeroCounterDto>>($"/api/heroes/1/counters{query}");
-        return counters!;
-    }
-
-    [Fact]
-    public async Task RanksBySampleAdjustedAdvantage_NotRawWinRate()
-    {
-        var counters = await GetCounters();
-
-        Assert.Equal([3, 2, 4], counters.Select(c => c.Id));
-    }
-
-    [Fact]
-    public async Task ReturnsAdvantageWinRateAndBaseline()
-    {
-        var hero3 = (await GetCounters()).First(c => c.Id == 3);
-
-        // (70 - 100 * 0.5) / (100 + 30) = 15.38 points
-        Assert.Equal(15.38m, hero3.Advantage);
-        Assert.Equal(70m, hero3.WinRate);
-        Assert.Equal(50m, hero3.BaselineWinRate);
-        Assert.Equal(100, hero3.GamesPlayed);
-    }
-
-    [Fact]
-    public async Task ExcludesMatchupsWithNoGames()
-    {
-        var counters = await GetCounters();
-
-        Assert.DoesNotContain(counters, c => c.Id == 5);
-    }
-
-    [Theory]
-    [InlineData(1, 1)]
-    [InlineData(20, 3)]
-    public async Task AppliesLimit(int limit, int expectedCount)
-    {
-        var counters = await GetCounters($"?limit={limit}");
-
-        Assert.Equal(expectedCount, counters.Count);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(21)]
-    public async Task RejectsLimitOutOfRange(int limit)
-    {
-        var response = await _factory.CreateClient().GetAsync($"/api/heroes/1/counters?limit={limit}");
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>();
-        Assert.Contains("between 1 and 20", Assert.Single(problem!.Errors["limit"]));
-    }
 
     [Fact]
     public async Task GetHeroes_ReturnsHeroDtosSortedByName_WithoutMatchups()
@@ -114,21 +40,5 @@ public class HeroEndpointsTests : IAsyncLifetime
         Assert.Equal(5, heroes!.Count);
         Assert.Equal(heroes.Select(h => h.LocalizedName).Order(), heroes.Select(h => h.LocalizedName));
         Assert.Equal("npc_dota_hero_1", heroes.Single(h => h.Id == 1).Name);
-    }
-
-    [Fact]
-    public async Task ReturnsNotFound_ForNonNumericId()
-    {
-        var response = await _factory.CreateClient().GetAsync("/api/heroes/abc/counters");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task ReturnsNotFound_ForUnknownHero()
-    {
-        var response = await _factory.CreateClient().GetAsync("/api/heroes/999/counters");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }

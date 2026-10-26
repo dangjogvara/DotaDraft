@@ -92,7 +92,6 @@ The full API reference, with every parameter, response and schema, is the OpenAP
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/heroes` | All heroes, sorted by name |
-| `GET` | `/api/heroes/{id}/counters?limit=5` | Top counter-picks against a hero (`limit` 1–20) |
 | `GET` | `/api/counters?against=1&against=14&limit=10` | Top counter-picks against an enemy lineup of 1–5 heroes (`limit` 1–20) |
 | `GET` | `/health` | `Healthy` (200) when the API can reach the database, otherwise `Unhealthy` (503) |
 
@@ -104,13 +103,16 @@ Errors are [ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) (`applicatio
 
 ### How counters are ranked
 
-A counter in the response looks like this (shortened):
+A counter to one enemy (`/api/counters?against=1`) looks like this (shortened):
 
 ```json
-{ "id": 63, "localizedName": "Weaver", "advantage": 12.4, "winRate": 73.91, "baselineWinRate": 45.34, "gamesPlayed": 23 }
+{
+  "id": 63, "localizedName": "Weaver", "totalAdvantage": 12.4, "baselineWinRate": 45.34,
+  "matchups": [{ "enemyId": 1, "advantage": 12.4, "winRate": 73.91, "gamesPlayed": 23 }]
+}
 ```
 
-The list is sorted by `advantage`: how many percentage points better the counter hero does against this opponent than it does in general, scaled down when there are few games to go on:
+Each entry in `matchups` has an `advantage`: how many percentage points better the counter hero does against that enemy than it does in general, scaled down when there are few games to go on:
 
 ```
 raw edge  = winRate − baselineWinRate
@@ -122,7 +124,7 @@ advantage = raw edge × trust
 - **`trust`** stops lucky small samples (say 5 wins in 6 games) from topping the list. With `k = 30`, a matchup with 30 games keeps half its raw edge, and one with 300 games keeps about 90%.
 - **`k`** is the `Counters:PriorGames` setting (default 30). Raise it to trust small samples less.
 
-**Against a lineup** (`/api/counters`), each candidate's per-enemy advantages are added up into `totalAdvantage`, so a hero that counters several enemies ranks above one that strongly counters only one of them. An enemy without matchup data counts as 0. Heroes already in the lineup are never suggested, and `matchups` gives the per-enemy breakdown so you can see what each suggestion is based on. Invalid lineups (none, more than 5, duplicates, unknown IDs) and a `limit` outside 1–20 return `400`.
+The list is sorted by `totalAdvantage`, the per-enemy advantages added up. With one enemy that's just its `advantage`. **Against a lineup**, adding them up ranks a hero that counters several enemies above one that strongly counters only one of them. An enemy without matchup data counts as 0. Heroes already in the lineup are never suggested, and `matchups` gives the per-enemy breakdown so you can see what each suggestion is based on. Invalid lineups (none, more than 5, duplicates, unknown IDs) and a `limit` outside 1–20 return `400`.
 
 With public match data most matchups have well over 1,000 games, so `trust` is close to 1 and `k` mainly dampens rarely picked heroes.
 

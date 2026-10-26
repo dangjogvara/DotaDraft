@@ -4,8 +4,12 @@
 GET {{HostAddress}}/api/heroes
 Accept: application/json
 
-### Top counter-picks for a hero (here Anti-Mage), ranked by sample-adjusted advantage; limit is 1-20
-GET {{HostAddress}}/api/heroes/1/counters?limit=5
+### Top counter-picks against Anti-Mage, ranked by sample-adjusted advantage; limit is 1-20
+GET {{HostAddress}}/api/counters?against=1&limit=5
+Accept: application/json
+
+### Against a lineup (Anti-Mage and Pudge): one "against" per enemy, up to five
+GET {{HostAddress}}/api/counters?against=1&against=14
 Accept: application/json
 
 ### Health: "Healthy" (200) when the database is reachable, "Unhealthy" (503) otherwise

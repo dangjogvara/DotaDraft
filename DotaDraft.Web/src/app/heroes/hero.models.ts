@@ -1,4 +1,4 @@
-// Mirror DotaDraft.Api's Dtos/HeroDto.cs, HeroCounterDto.cs and DraftCounterDto.cs
+// Mirror DotaDraft.Api's Dtos/HeroDto.cs, DraftCounterDto.cs and EnemyMatchupDto.cs
 
 export interface Hero {
   id: number;
@@ -7,19 +7,6 @@ export interface Hero {
   primaryAttr: string;
   roles: string[];
   imgUrl: string | null;
-}
-
-/** Win rates and advantage are percentages; counters are ranked by advantage. */
-export interface HeroCounter {
-  id: number;
-  localizedName: string;
-  primaryAttr: string;
-  imgUrl: string | null;
-  /** Sample-adjusted win rate minus the counter's baseline, in percentage points. */
-  advantage: number;
-  winRate: number;
-  baselineWinRate: number;
-  gamesPlayed: number;
 }
 
 /** A counter-pick against a whole enemy lineup, ranked by totalAdvantage (percentage points). */

@@ -38,31 +38,25 @@ public class CounterServiceTests
     }
 
     [Fact]
-    public async Task GetHeroCounters_ReturnsNull_ForUnknownHero()
+    public async Task GetDraftCounters_ReturnsEmpty_ForHeroWithoutMatchups()
     {
-        Assert.Null(await CreateService().GetHeroCountersAsync(99, 5, CancellationToken.None));
+        var result = await CreateService().GetDraftCountersAsync([1], 5, CancellationToken.None);
+
+        Assert.Empty(result.Counters);
+        Assert.Empty(result.UnknownHeroIds);
     }
 
     [Fact]
-    public async Task GetHeroCounters_ReturnsEmpty_ForHeroWithoutMatchups()
-    {
-        var counters = await CreateService().GetHeroCountersAsync(1, 5, CancellationToken.None);
-
-        Assert.NotNull(counters);
-        Assert.Empty(counters);
-    }
-
-    [Fact]
-    public async Task GetHeroCounters_AppliesPriorGamesFromOptions()
+    public async Task GetDraftCounters_AppliesPriorGamesFromOptions()
     {
         // 6 of 10 against hero 1 and 4 of 10 against hero 4: a 50% baseline and a raw edge of 10 points
         AddMatchups((2, 1, 6, 10), (2, 4, 4, 10));
 
-        var unsmoothed = await CreateService(priorGames: 0).GetHeroCountersAsync(1, 5, CancellationToken.None);
-        var smoothed = await CreateService(priorGames: 10).GetHeroCountersAsync(1, 5, CancellationToken.None);
+        var unsmoothed = await CreateService(priorGames: 0).GetDraftCountersAsync([1], 5, CancellationToken.None);
+        var smoothed = await CreateService(priorGames: 10).GetDraftCountersAsync([1], 5, CancellationToken.None);
 
-        Assert.Equal(10m, Assert.Single(unsmoothed!).Advantage);
-        Assert.Equal(5m, Assert.Single(smoothed!).Advantage);
+        Assert.Equal(10m, Assert.Single(unsmoothed.Counters).TotalAdvantage);
+        Assert.Equal(5m, Assert.Single(smoothed.Counters).TotalAdvantage);
     }
 
     [Fact]

@@ -24,7 +24,6 @@ public class OpenApiDocumentTests : IAsyncLifetime
     public static TheoryData<string, string, string, string> Operations => new()
     {
         { "/api/heroes", "get", "GetHeroes", "Heroes" },
-        { "/api/heroes/{id}/counters", "get", "GetHeroCounters", "Counters" },
         { "/api/counters", "get", "GetDraftCounters", "Counters" },
     };
 
@@ -52,18 +51,9 @@ public class OpenApiDocumentTests : IAsyncLifetime
     }
 
     [Fact]
-    public void HeroCounters_DescribesNotFound()
-    {
-        var operation = Operation("/api/heroes/{id}/counters");
-
-        Assert.Equal("#/components/schemas/HeroCounterDto", SchemaRef(operation, "200"));
-        Assert.Equal("#/components/schemas/ProblemDetails", SchemaRef(operation, "404", "application/problem+json"));
-    }
-
-    [Fact]
     public void DtoProperties_HaveDescriptions_AndPlainNumberTypes()
     {
-        var properties = _document["components"]!["schemas"]!["HeroCounterDto"]!["properties"]!;
+        var properties = _document["components"]!["schemas"]!["EnemyMatchupDto"]!["properties"]!;
 
         Assert.Contains("percentage points", (string?)properties["advantage"]!["description"]);
         Assert.Equal("integer", (string?)properties["gamesPlayed"]!["type"]);

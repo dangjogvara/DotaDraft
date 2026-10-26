@@ -28,19 +28,18 @@ public class ErrorResponseTests
     }
 
     [Fact]
-    public async Task UnknownHero_ReturnsNotFoundProblem()
+    public async Task UnknownHero_ReturnsValidationProblem()
     {
         await using var factory = new DotaDraftApiFactory();
 
-        var response = await factory.CreateClient().GetAsync("/api/heroes/999/counters");
+        var response = await factory.CreateClient().GetAsync("/api/counters?against=999");
 
-        var problem = await AssertProblem(response, HttpStatusCode.NotFound);
-        Assert.Equal("Hero not found", problem.Title);
-        Assert.Equal("Hero with ID 999 not found.", problem.Detail);
+        var problem = await AssertProblem(response, HttpStatusCode.BadRequest);
+        Assert.Contains("Unknown hero IDs: 999", problem.Extensions["errors"]!.ToString());
     }
 
     [Theory]
-    [InlineData("/api/heroes/abc/counters")]
+    [InlineData("/api/heroes/1/counters")]
     [InlineData("/api/nothing-here")]
     public async Task UnmatchedRoute_ReturnsNotFoundProblem(string url)
     {

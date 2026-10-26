@@ -10,50 +10,6 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 {
     private readonly int _priorGames = options.Value.PriorGames;
 
-    /// <returns>The best counters to the hero, or null if it doesn't exist.</returns>
-    public async Task<IReadOnlyList<HeroCounterDto>?> GetHeroCountersAsync(int heroId, int limit, CancellationToken ct)
-    {
-        if (!await db.Heroes.AnyAsync(h => h.Id == heroId, ct))
-            return null;
-
-        // At most one row per hero
-        var matchups = await db.HeroMatchups
-            .AsNoTracking()
-            .Where(m => m.AgainstHeroId == heroId && m.GamesPlayed > 0)
-            .Select(m => new
-            {
-                m.Hero.Id,
-                m.Hero.LocalizedName,
-                m.Hero.PrimaryAttr,
-                m.Hero.ImgUrl,
-                m.Wins,
-                m.GamesPlayed,
-                m.WinRate
-            })
-            .ToListAsync(ct);
-
-        var baselines = await LoadBaselineWinRatesAsync(ct);
-
-        return matchups
-            .Select(m =>
-            {
-                var baseline = baselines.GetValueOrDefault(m.Id, 0.5);
-                return new HeroCounterDto(
-                    m.Id,
-                    m.LocalizedName,
-                    m.PrimaryAttr,
-                    m.ImgUrl,
-                    ToPoints(CounterRanking.Advantage(m.Wins, m.GamesPlayed, baseline, _priorGames)),
-                    m.WinRate,
-                    ToPoints(baseline),
-                    m.GamesPlayed);
-            })
-            .OrderByDescending(c => c.Advantage)
-            .ThenByDescending(c => c.GamesPlayed)
-            .Take(limit)
-            .ToList();
-    }
-
     public async Task<DraftCountersResult> GetDraftCountersAsync(IReadOnlyList<int> enemyIds, int limit, CancellationToken ct)
     {
         var known = await db.Heroes.Where(h => enemyIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);

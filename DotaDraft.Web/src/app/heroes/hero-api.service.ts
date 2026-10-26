@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { DraftCounter, Hero, HeroCounter } from './hero.models';
+import { DraftCounter, Hero } from './hero.models';
 
 @Injectable({ providedIn: 'root' })
 export class HeroApiService {
@@ -14,13 +14,6 @@ export class HeroApiService {
   /** All heroes, sorted by name. */
   getHeroes(): Observable<Hero[]> {
     return this.http.get<Hero[]>(this.baseUrl);
-  }
-
-  /** Top counter-picks against a hero; the API clamps limit to 1-20. */
-  getCounters(heroId: number, limit = 5): Observable<HeroCounter[]> {
-    return this.http.get<HeroCounter[]>(`${this.baseUrl}/${heroId}/counters`, {
-      params: { limit },
-    });
   }
 
   /** Counter-picks against a lineup of 1-5 enemies, ranked by summed advantage; limit is clamped to 1-20. */
