@@ -21,27 +21,26 @@
         Reload the page in a moment.
       </p>
     } @else {
-      <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <section class="min-w-0 flex-1" aria-label="Heroes">
-          <app-lineup-slots [lineup]="lineup()" (removed)="removeEnemy($event)" (cleared)="clearLineup()" />
-          <app-hero-filters [(query)]="query" [(attribute)]="attribute" />
+      <!--
+        Phones stack these in source order, so the counters come before the long hero grid.
+        Large screens keep the lineup and grid on the left and the counters in a sticky column
+        on the right.
+      -->
+      <div
+        class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-y-0"
+      >
+        <app-lineup-slots
+          class="min-w-0 lg:col-start-1"
+          [lineup]="lineup()"
+          (removed)="removeEnemy($event)"
+          (cleared)="clearLineup()"
+        />
 
-          @for (group of heroGroups(); track group.attribute) {
-            <h2 class="mt-4 mb-2 text-sm font-semibold tracking-wide text-slate-400 uppercase">
-              {{ group.label }}
-            </h2>
-            <app-hero-grid
-              [heroes]="group.heroes"
-              [pickedIds]="pickedIds()"
-              [full]="lineupFull()"
-              (heroSelected)="addEnemy($event)"
-            />
-          } @empty {
-            <p class="text-slate-400" data-testid="no-matches">No heroes match your filters.</p>
-          }
-        </section>
-
-        <aside class="lg:sticky lg:top-6 lg:w-96" aria-live="polite" data-testid="counters-panel">
+        <aside
+          class="lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1"
+          aria-live="polite"
+          data-testid="counters-panel"
+        >
           @if (lineup().length > 0) {
             <h2 class="mb-3 text-lg font-semibold">
               @if (lineup().length === 1) {
@@ -72,6 +71,24 @@
             <p class="text-slate-400">Pick up to five enemy heroes to see who counters them.</p>
           }
         </aside>
+
+        <section class="min-w-0 lg:col-start-1" aria-label="Heroes">
+          <app-hero-filters [(query)]="query" [(attribute)]="attribute" />
+
+          @for (group of heroGroups(); track group.attribute) {
+            <h2 class="mt-4 mb-2 text-sm font-semibold tracking-wide text-slate-400 uppercase">
+              {{ group.label }}
+            </h2>
+            <app-hero-grid
+              [heroes]="group.heroes"
+              [pickedIds]="pickedIds()"
+              [full]="lineupFull()"
+              (heroSelected)="addEnemy($event)"
+            />
+          } @empty {
+            <p class="text-slate-400" data-testid="no-matches">No heroes match your filters.</p>
+          }
+        </section>
       </div>
     }
   }

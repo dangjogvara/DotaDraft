@@ -113,6 +113,20 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-panel"]')).toContain('Pick up to five enemy heroes');
   });
 
+  it('puts the counters between the lineup and the hero grid, the order phones stack them in', async () => {
+    await open();
+    loadHeroes();
+
+    const all = [...el().querySelectorAll('*')];
+    const positions = [
+      'app-lineup-slots',
+      '[data-testid="counters-panel"]',
+      'section[aria-label="Heroes"]',
+    ].map((selector) => all.indexOf(el().querySelector(selector)!));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
   it('shows an error with a working retry when heroes fail to load', async () => {
     await open();
     http.expectOne(heroesUrl).error(new ProgressEvent('error'));
