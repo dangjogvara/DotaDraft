@@ -11,6 +11,7 @@ import { DraftCounter, Hero } from './hero.models';
 
 const heroesUrl = `${environment.apiBaseUrl}/api/heroes`;
 const draftCountersUrl = `${environment.apiBaseUrl}/api/counters`;
+const teamMatchupUrl = `${environment.apiBaseUrl}/api/team-matchup`;
 
 const hero = (id: number, localizedName: string, primaryAttr = 'agi'): Hero => ({
   id,
@@ -98,6 +99,14 @@ describe('HeroCountersPage', () => {
     const req = http.expectOne((r) => r.url === draftCountersUrl);
     expect(req.request.params.getAll('against')).toEqual(enemyIds.map(String));
     expect(req.request.params.getAll('exclude') ?? []).toEqual(excludeIds.map(String));
+    return req;
+  }
+
+  /** The pending team-matchup request, asserting which heroes are on each team. */
+  function teamRequest(teamIds: number[], enemyIds: number[]): TestRequest {
+    const req = http.expectOne((r) => r.url === teamMatchupUrl);
+    expect(req.request.params.getAll('team')).toEqual(teamIds.map(String));
+    expect(req.request.params.getAll('against')).toEqual(enemyIds.map(String));
     return req;
   }
 
@@ -378,6 +387,7 @@ describe('HeroCountersPage', () => {
       addPicksTo('My team');
       pick('Axe');
       countersRequest([1], [2]).flush([]);
+      teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [] });
       render();
       expect(badge('Anti-Mage')).toBe('Enemy');
 
@@ -411,6 +421,7 @@ describe('HeroCountersPage', () => {
       expect(gridButton('Drow Ranger').disabled).toBe(false);
       pick('Drow Ranger');
       countersRequest([6], [1, 2, 3, 4, 5]).flush([]);
+      teamRequest([1, 2, 3, 4, 5], [6]).flush({ totalAdvantage: 0, heroes: [] });
     });
 
     it('keeps both teams in the URL', async () => {
@@ -421,6 +432,7 @@ describe('HeroCountersPage', () => {
       addPicksTo('My team');
       pick('Axe');
       countersRequest([1], [2]).flush([]);
+      teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [] });
 
       expect(await url()).toBe('/?against=1&team=2');
     });
@@ -432,6 +444,7 @@ describe('HeroCountersPage', () => {
       expect(slotNames('enemy')[0]).toBe('Anti-Mage');
       expect(slotNames('ally')[0]).toBe('Axe');
       countersRequest([1], [2]).flush([]);
+      teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [] });
     });
 
     it('puts a hero that a link lists on both teams with the enemy', async () => {
@@ -441,6 +454,104 @@ describe('HeroCountersPage', () => {
       expect(slotNames('enemy')[0]).toBe('Anti-Mage');
       expect(slotNames('ally').slice(0, 2)).toEqual(['Axe', 'Empty']);
       countersRequest([1], [2]).flush([]);
+      teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [] });
+    });
+  });
+
+  describe("your team's matchup", () => {
+    const axeScored: DraftCounter = {
+      id: 2,
+      localizedName: 'Axe',
+      primaryAttr: 'str',
+      imgUrl: null,
+      totalAdvantage: 4.52,
+      baselineWinRate: 50.1,
+      matchups: [{ enemyId: 1, advantage: 4.52, winRate: 55.3, gamesPlayed: 1200 }],
+    };
+    const panel = () => text('[data-testid="team-matchup"]');
+
+    /** Anti-Mage as the enemy and Axe on your team, with the counters answered. */
+    async function draftWithBothTeams() {
+      await open();
+      loadHeroes();
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+      addPicksTo('My team');
+      pick('Axe');
+      countersRequest([1], [2]).flush([]);
+    }
+
+    it('only appears once both teams have picks', async () => {
+      await open();
+      loadHeroes();
+      addPicksTo('My team');
+      pick('Axe');
+      expect(el().querySelector('[data-testid="team-matchup"]')).toBeNull();
+
+      addPicksTo('Enemy team');
+      pick('Anti-Mage');
+      countersRequest([1], [2]).flush([]);
+      teamRequest([2], [1]);
+      render();
+      expect(panel()).toContain("Loading your team's matchup");
+    });
+
+    it("shows the team's combined edge and each hero's breakdown", async () => {
+      await draftWithBothTeams();
+      teamRequest([2], [1]).flush({ totalAdvantage: 4.52, heroes: [axeScored] });
+      render();
+
+      expect(panel()).toContain("Your team's matchup");
+      expect(text('[data-testid="team-total"]')).toBe('+4.5 combined edge');
+      expect(panel()).toContain('Axe');
+      expect(panel()).toContain('Wins 55.3% against Anti-Mage');
+      expect(panel()).toContain("isn't a win prediction");
+    });
+
+    it('colours a negative total red', async () => {
+      await draftWithBothTeams();
+      teamRequest([2], [1]).flush({ totalAdvantage: -2.25, heroes: [{ ...axeScored, totalAdvantage: -2.25 }] });
+      render();
+
+      const total = el().querySelector('[data-testid="team-total"] span')!;
+      expect(total.textContent?.trim()).toBe('-2.3');
+      expect(total.classList).toContain('text-red-400');
+    });
+
+    it('asks again when either team changes, dropping the outdated answer', async () => {
+      await open();
+      loadHeroes(lineupOfSix);
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+      addPicksTo('My team');
+      pick('Axe');
+      countersRequest([1], [2]).flush([]);
+      const first = teamRequest([2], [1]);
+
+      pick('Bane');
+      countersRequest([1], [2, 3]).flush([]);
+
+      expect(first.cancelled).toBe(true);
+      teamRequest([2, 3], [1]).flush({ totalAdvantage: 0, heroes: [] });
+    });
+
+    it('disappears when your team is cleared', async () => {
+      await draftWithBothTeams();
+      teamRequest([2], [1]).flush({ totalAdvantage: 4.52, heroes: [axeScored] });
+
+      el().querySelector<HTMLButtonElement>('[aria-label="Clear Your team"]')!.click();
+      render();
+      countersRequest([1]).flush([]);
+
+      expect(el().querySelector('[data-testid="team-matchup"]')).toBeNull();
+    });
+
+    it('shows an error when it fails to load', async () => {
+      await draftWithBothTeams();
+      teamRequest([2], [1]).error(new ProgressEvent('error'));
+      render();
+
+      expect(panel()).toContain("Could not load your team's matchup");
     });
   });
 

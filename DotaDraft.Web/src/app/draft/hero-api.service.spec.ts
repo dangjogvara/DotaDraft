@@ -44,4 +44,13 @@ describe('HeroApiService', () => {
 
     http.expectOne(`${environment.apiBaseUrl}/api/counters?against=1&exclude=5&exclude=8&limit=10`).flush([]);
   });
+
+  it('gets the team matchup with repeated "team" and "against" keys', () => {
+    service.getTeamMatchup([82, 26], [1, 14]).subscribe();
+
+    http.expectOne(`${environment.apiBaseUrl}/api/team-matchup?team=82&team=26&against=1&against=14`).flush({
+      totalAdvantage: 0,
+      heroes: [],
+    });
+  });
 });
