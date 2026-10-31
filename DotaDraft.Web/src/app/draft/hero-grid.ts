@@ -9,9 +9,10 @@ import { Hero } from './hero.models';
 })
 export class HeroGrid {
   readonly heroes = input.required<Hero[]>();
-  /** Heroes already in the lineup: shown as picked and not selectable. */
-  readonly pickedIds = input<ReadonlySet<number>>(new Set());
-  /** When the lineup is full, no further heroes can be picked. */
+  /** Heroes picked by either team: badged with their team and not selectable. */
+  readonly enemyIds = input<ReadonlySet<number>>(new Set());
+  readonly allyIds = input<ReadonlySet<number>>(new Set());
+  /** When the team being picked for is full, no further heroes can be picked. */
   readonly full = input(false);
   readonly heroSelected = output<Hero>();
 }

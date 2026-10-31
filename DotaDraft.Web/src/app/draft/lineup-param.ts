@@ -4,6 +4,9 @@ import { MAX_LINEUP } from './lineup-slots';
 /** The query parameter holding the enemy lineup, e.g. `?against=1,14`. */
 export const LINEUP_PARAM = 'against';
 
+/** The query parameter holding your own team's picks, e.g. `&team=5,8`. */
+export const TEAM_PARAM = 'team';
+
 /**
  * The lineup a URL describes, in order. Unknown, invalid and repeated IDs are skipped, and only the
  * first five heroes are kept, so a hand-edited or outdated link still opens a valid lineup.

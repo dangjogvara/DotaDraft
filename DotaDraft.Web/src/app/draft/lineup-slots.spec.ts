@@ -15,9 +15,10 @@ const hero = (id: number, localizedName: string): Hero => ({
 describe('LineupSlots', () => {
   let fixture: ComponentFixture<LineupSlots>;
 
-  function render(lineup: Hero[]) {
+  function render(lineup: Hero[], inputs: { label?: string; team?: 'enemy' | 'ally' } = {}) {
     fixture = TestBed.createComponent(LineupSlots);
     fixture.componentRef.setInput('lineup', lineup);
+    for (const [name, value] of Object.entries(inputs)) fixture.componentRef.setInput(name, value);
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
@@ -45,5 +46,15 @@ describe('LineupSlots', () => {
 
     expect(buttons(render([]))).not.toContain('Clear');
     expect(buttons(render([hero(2, 'Axe')]))).toContain('Clear');
+  });
+
+  it("shows your team's label and colours its picks green", () => {
+    const el = render([hero(2, 'Axe')], { label: 'Your team', team: 'ally' });
+
+    expect(el.querySelector('h2')?.textContent).toContain('Your team (1/5)');
+    const pick = el.querySelector('[data-testid="slot"] .ring-2')!;
+    expect(pick.classList).toContain('ring-emerald-500/70');
+    expect(pick.classList).not.toContain('ring-red-500/70');
+    expect(el.querySelector('[aria-label="Clear Your team"]')).not.toBeNull();
   });
 });

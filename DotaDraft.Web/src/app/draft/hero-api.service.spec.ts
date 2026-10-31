@@ -38,4 +38,10 @@ describe('HeroApiService', () => {
 
     http.expectOne(`${environment.apiBaseUrl}/api/counters?against=1&against=14&against=74&limit=10`).flush([]);
   });
+
+  it('adds one repeated "exclude" key per hero to leave out', () => {
+    service.getDraftCounters([1], [5, 8]).subscribe();
+
+    http.expectOne(`${environment.apiBaseUrl}/api/counters?against=1&exclude=5&exclude=8&limit=10`).flush([]);
+  });
 });

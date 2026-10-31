@@ -70,9 +70,14 @@ describe('HeroCountersPage', () => {
       b.textContent?.includes(name),
     )!;
   const visibleHeroes = () =>
-    [...el().querySelectorAll('app-hero-grid button')].map((b) => b.textContent?.replace('Picked', '').trim());
-  const slotNames = () =>
-    [...el().querySelectorAll('[data-testid="slot"]')].map((s) => s.textContent?.replace('✕', '').trim());
+    [...el().querySelectorAll('app-hero-grid button')].map((b) =>
+      b.textContent?.replace(/Enemy|Ally/, '').trim(),
+    );
+  const slotNames = (team: 'enemy' | 'ally' = 'enemy') =>
+    [...el().querySelectorAll(`[data-testid="${team}-lineup"] [data-testid="slot"]`)].map((s) =>
+      s.textContent?.replace('✕', '').trim(),
+    );
+  const badge = (name: string) => gridButton(name).querySelector('span.absolute')?.textContent?.trim();
 
   function render() {
     harness.detectChanges();
@@ -88,11 +93,19 @@ describe('HeroCountersPage', () => {
     render();
   }
 
-  /** The pending combined-counters request, asserting which enemies it asks about. */
-  function countersRequest(enemyIds: number[]): TestRequest {
+  /** The pending combined-counters request, asserting which enemies it asks about and which heroes it excludes. */
+  function countersRequest(enemyIds: number[], excludeIds: number[] = []): TestRequest {
     const req = http.expectOne((r) => r.url === draftCountersUrl);
     expect(req.request.params.getAll('against')).toEqual(enemyIds.map(String));
+    expect(req.request.params.getAll('exclude') ?? []).toEqual(excludeIds.map(String));
     return req;
+  }
+
+  function addPicksTo(team: 'Enemy team' | 'My team') {
+    [...el().querySelectorAll<HTMLButtonElement>('app-team-toggle button')]
+      .find((b) => b.textContent?.trim() === team)!
+      .click();
+    render();
   }
 
   function search(query: string) {
@@ -203,9 +216,7 @@ describe('HeroCountersPage', () => {
     pick('Anti-Mage');
     countersRequest([1]).flush([weaver]);
 
-    [...el().querySelectorAll<HTMLButtonElement>('app-lineup-slots button')]
-      .find((b) => b.textContent?.trim() === 'Clear')!
-      .click();
+    el().querySelector<HTMLButtonElement>('[aria-label="Clear Enemy lineup"]')!.click();
     render();
 
     expect(slotNames()).toEqual(['Empty', 'Empty', 'Empty', 'Empty', 'Empty']);
@@ -277,9 +288,7 @@ describe('HeroCountersPage', () => {
     countersRequest([1]).flush([]);
     expect(await url()).toBe('/?against=1');
 
-    [...el().querySelectorAll<HTMLButtonElement>('app-lineup-slots button')]
-      .find((b) => b.textContent?.trim() === 'Clear')!
-      .click();
+    el().querySelector<HTMLButtonElement>('[aria-label="Clear Enemy lineup"]')!.click();
     render();
     expect(await url()).toBe('/');
     expect(pushState).not.toHaveBeenCalled();
@@ -341,6 +350,96 @@ describe('HeroCountersPage', () => {
 
     expect(slotNames()[0]).toBe('Anti-Mage');
     expect(text('[data-testid="counters-panel"]')).toContain('Weaver');
+  });
+
+  describe('your own team', () => {
+    it('adds picks to your team after switching the toggle, without asking for counters', async () => {
+      await open();
+      loadHeroes();
+
+      addPicksTo('My team');
+      pick('Axe');
+
+      expect(slotNames('ally')[0]).toBe('Axe');
+      expect(slotNames('enemy')[0]).toBe('Empty');
+      expect(badge('Axe')).toBe('Ally');
+      expect(gridButton('Axe').disabled).toBe(true);
+      expect(text('[data-testid="counters-panel"]')).toContain('Pick up to five enemy heroes');
+    });
+
+    it("excludes your team's picks from the counters", async () => {
+      await open();
+      loadHeroes();
+      pick('Anti-Mage');
+      countersRequest([1]).flush([weaver]);
+
+      addPicksTo('My team');
+      pick('Axe');
+      countersRequest([1], [2]).flush([]);
+      render();
+      expect(badge('Anti-Mage')).toBe('Enemy');
+
+      el().querySelector<HTMLButtonElement>('[aria-label="Remove Axe"]')!.click();
+      render();
+      countersRequest([1]).flush([]);
+    });
+
+    it('keeps a hero to one team', async () => {
+      await open();
+      loadHeroes();
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+
+      addPicksTo('My team');
+      gridButton('Anti-Mage').click();
+      render();
+
+      expect(slotNames('ally')[0]).toBe('Empty');
+    });
+
+    it('fills each team separately', async () => {
+      await open();
+      loadHeroes(lineupOfSix);
+      addPicksTo('My team');
+      for (const h of lineupOfSix.slice(0, 5)) pick(h.localizedName);
+
+      expect(gridButton('Drow Ranger').disabled).toBe(true);
+
+      addPicksTo('Enemy team');
+      expect(gridButton('Drow Ranger').disabled).toBe(false);
+      pick('Drow Ranger');
+      countersRequest([6], [1, 2, 3, 4, 5]).flush([]);
+    });
+
+    it('keeps both teams in the URL', async () => {
+      await open();
+      loadHeroes();
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+      addPicksTo('My team');
+      pick('Axe');
+      countersRequest([1], [2]).flush([]);
+
+      expect(await url()).toBe('/?against=1&team=2');
+    });
+
+    it('restores both teams from the URL', async () => {
+      await open('/?against=1&team=2');
+      loadHeroes();
+
+      expect(slotNames('enemy')[0]).toBe('Anti-Mage');
+      expect(slotNames('ally')[0]).toBe('Axe');
+      countersRequest([1], [2]).flush([]);
+    });
+
+    it('puts a hero that a link lists on both teams with the enemy', async () => {
+      await open('/?against=1&team=1,2');
+      loadHeroes();
+
+      expect(slotNames('enemy')[0]).toBe('Anti-Mage');
+      expect(slotNames('ally').slice(0, 2)).toEqual(['Axe', 'Empty']);
+      countersRequest([1], [2]).flush([]);
+    });
   });
 
   describe('while the API is still seeding', () => {
