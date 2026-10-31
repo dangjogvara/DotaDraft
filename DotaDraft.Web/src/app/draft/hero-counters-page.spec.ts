@@ -6,7 +6,7 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
 import { environment } from '../../environments/environment';
-import { HeroCountersPage } from './hero-counters-page';
+import { HeroCountersPage, SEED_POLL_MS } from './hero-counters-page';
 import { DraftCounter, Hero } from './hero.models';
 
 const heroesUrl = `${environment.apiBaseUrl}/api/heroes`;
@@ -341,5 +341,86 @@ describe('HeroCountersPage', () => {
 
     expect(slotNames()[0]).toBe('Anti-Mage');
     expect(text('[data-testid="counters-panel"]')).toContain('Weaver');
+  });
+
+  describe('while the API is still seeding', () => {
+    // Enabled after the page has opened, since the router harness itself waits on real timers
+    const useFakeTimers = () => vi.useFakeTimers();
+    const waitPoll = () => vi.advanceTimersByTime(SEED_POLL_MS);
+
+    afterEach(() => vi.useRealTimers());
+
+    it('asks for heroes again until there are some, then stops', async () => {
+      await open();
+      useFakeTimers();
+      loadHeroes([]);
+
+      waitPoll();
+      loadHeroes([]);
+      expect(text('[data-testid="heroes-empty"]')).toContain('updates by itself');
+
+      waitPoll();
+      loadHeroes();
+      expect(el().querySelectorAll('app-hero-grid button').length).toBe(2);
+
+      waitPoll();
+      http.expectNone(heroesUrl);
+    });
+
+    it('restores the lineup from the URL once heroes arrive', async () => {
+      await open('/?against=1');
+      useFakeTimers();
+      loadHeroes([]);
+
+      waitPoll();
+      loadHeroes();
+
+      expect(slotNames()[0]).toBe('Anti-Mage');
+      countersRequest([1]).flush([weaver]);
+    });
+
+    it('asks for counters again until there are some, without flashing a loading message', async () => {
+      await open();
+      useFakeTimers();
+      loadHeroes();
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+      render();
+
+      waitPoll();
+      render();
+      expect(text('[data-testid="counters-empty"]')).toContain('appear here by themselves');
+      countersRequest([1]).flush([weaver]);
+      render();
+      expect(text('[data-testid="counters-panel"]')).toContain('Weaver');
+
+      waitPoll();
+      http.expectNone((r) => r.url === draftCountersUrl);
+    });
+
+    it('stops asking for an old lineup when the lineup changes', async () => {
+      await open();
+      useFakeTimers();
+      loadHeroes();
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+
+      pick('Axe');
+      countersRequest([1, 2]).flush([weaver]);
+
+      waitPoll();
+      http.expectNone((r) => r.url === draftCountersUrl);
+    });
+
+    it('stops asking when the page is left', async () => {
+      await open();
+      useFakeTimers();
+      loadHeroes([]);
+
+      harness.fixture.destroy();
+      waitPoll();
+
+      http.expectNone(heroesUrl);
+    });
   });
 });
