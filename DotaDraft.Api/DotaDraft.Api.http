@@ -12,5 +12,9 @@ Accept: application/json
 GET {{HostAddress}}/api/counters?against=1&against=14
 Accept: application/json
 
+### Leaving out heroes that can't be picked, such as your own team's (Crystal Maiden): one "exclude" each, up to five
+GET {{HostAddress}}/api/counters?against=1&against=14&exclude=5
+Accept: application/json
+
 ### Health: "Healthy" (200) when the database is reachable, "Unhealthy" (503) otherwise
 GET {{HostAddress}}/health
