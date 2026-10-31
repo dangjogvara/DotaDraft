@@ -55,6 +55,43 @@
           aria-live="polite"
           data-testid="counters-panel"
         >
+          @if (teamMatchup(); as matchup) {
+            <section class="mb-6" aria-label="Your team's matchup" data-testid="team-matchup">
+              <div class="mb-3 flex items-baseline justify-between gap-3">
+                <h2 class="text-lg font-semibold">Your team's matchup</h2>
+                @if (matchup.status === 'loaded') {
+                  @let total = matchup.data.totalAdvantage;
+                  <p class="shrink-0 text-right" data-testid="team-total">
+                    <span
+                      class="text-lg font-semibold tabular-nums"
+                      [class.text-emerald-400]="total > 0"
+                      [class.text-red-400]="total < 0"
+                      [class.text-slate-400]="total === 0"
+                    >
+                      {{ total > 0 ? '+' : '' }}{{ total | number: '1.1-1' }}
+                    </span>
+                    <span class="text-xs text-slate-500">combined edge</span>
+                  </p>
+                }
+              </div>
+              @switch (matchup.status) {
+                @case ('loading') {
+                  <p class="text-slate-400">Loading your team's matchup…</p>
+                }
+                @case ('error') {
+                  <p class="text-red-300">Could not load your team's matchup.</p>
+                }
+                @case ('loaded') {
+                  <app-counter-list [counters]="matchup.data.heroes" [lineup]="enemies()" />
+                  <p class="mt-2 text-xs text-slate-500">
+                    Each of your heroes' edge against the enemy picks, added up. It only looks at 1-vs-1
+                    matchups, not synergy, items or skill, so it isn't a win prediction.
+                  </p>
+                }
+              }
+            </section>
+          }
+
           @if (enemies().length > 0) {
             <h2 class="mb-3 text-lg font-semibold">
               @if (enemies().length === 1) {

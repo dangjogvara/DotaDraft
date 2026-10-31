@@ -29,3 +29,9 @@ export interface EnemyMatchup {
   winRate: number | null;
   gamesPlayed: number;
 }
+
+/** Mirrors TeamMatchupDto: your team's heroes scored against the enemy lineup, in pick order. */
+export interface TeamMatchup {
+  totalAdvantage: number;
+  heroes: DraftCounter[];
+}

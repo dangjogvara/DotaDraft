@@ -3,13 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { DraftCounter, Hero } from './hero.models';
+import { DraftCounter, Hero, TeamMatchup } from './hero.models';
 
 @Injectable({ providedIn: 'root' })
 export class HeroApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/api/heroes`;
   private readonly draftCountersUrl = `${environment.apiBaseUrl}/api/counters`;
+  private readonly teamMatchupUrl = `${environment.apiBaseUrl}/api/team-matchup`;
 
   /** All heroes, sorted by name. */
   getHeroes(): Observable<Hero[]> {
@@ -30,5 +31,11 @@ export class HeroApiService {
       },
     });
     return this.http.get<DraftCounter[]>(this.draftCountersUrl, { params });
+  }
+
+  /** How each of your team's 1-5 heroes does against a lineup of 1-5 enemies, plus the team's total. */
+  getTeamMatchup(teamIds: number[], enemyIds: number[]): Observable<TeamMatchup> {
+    const params = new HttpParams({ fromObject: { team: teamIds.map(String), against: enemyIds.map(String) } });
+    return this.http.get<TeamMatchup>(this.teamMatchupUrl, { params });
   }
 }

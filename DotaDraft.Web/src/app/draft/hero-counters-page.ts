@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -18,7 +19,7 @@ import { HeroApiService } from './hero-api.service';
 import { PrimaryAttr, filterHeroes, groupByAttribute } from './hero-search';
 import { HeroFilters } from './hero-filters';
 import { HeroGrid } from './hero-grid';
-import { DraftCounter, Hero } from './hero.models';
+import { DraftCounter, Hero, TeamMatchup } from './hero.models';
 import { LINEUP_PARAM, TEAM_PARAM, lineupFromParam, lineupToParam } from './lineup-param';
 import { LineupSlots, MAX_LINEUP } from './lineup-slots';
 import { Team } from './team';
@@ -49,7 +50,7 @@ const loadedData = <T>(state: LoadState<T> | null): T | undefined =>
 
 @Component({
   selector: 'app-hero-counters-page',
-  imports: [HeroFilters, HeroGrid, LineupSlots, TeamToggle, CounterList],
+  imports: [DecimalPipe, HeroFilters, HeroGrid, LineupSlots, TeamToggle, CounterList],
   templateUrl: './hero-counters-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -66,6 +67,8 @@ export class HeroCountersPage {
   /** Which team a click on the grid adds to. */
   protected readonly addingTo = signal<Team>('enemy');
   protected readonly counters = signal<LoadState<DraftCounter[]> | null>(null);
+  /** How your team does against the enemy; null until both teams have picks. */
+  protected readonly teamMatchup = signal<LoadState<TeamMatchup> | null>(null);
 
   protected readonly heroList = computed(() => loadedData(this.heroes()) ?? []);
   protected readonly counterList = computed(() => loadedData(this.counters()) ?? []);
@@ -92,6 +95,15 @@ export class HeroCountersPage {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((state) => this.counters.set(state));
+
+    this.draftChanges
+      .pipe(
+        switchMap((draft) =>
+          draft.enemies.length === 0 || draft.allies.length === 0 ? of(null) : this.loadTeamMatchup(draft),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((state) => this.teamMatchup.set(state));
   }
 
   protected loadHeroes(): void {
@@ -159,6 +171,14 @@ export class HeroCountersPage {
     const allies = lineupFromParam(params.get(TEAM_PARAM), heroes).filter((hero) => !enemyIds.has(hero.id));
 
     if (enemies.length > 0 || allies.length > 0) this.setDraft({ enemies, allies });
+  }
+
+  private loadTeamMatchup({ enemies, allies }: Draft): Observable<LoadState<TeamMatchup>> {
+    return this.heroApi.getTeamMatchup(ids(allies), ids(enemies)).pipe(
+      map((data): LoadState<TeamMatchup> => ({ status: 'loaded', data })),
+      catchError(() => of<LoadState<TeamMatchup>>({ status: 'error' })),
+      startWith<LoadState<TeamMatchup>>({ status: 'loading' }),
+    );
   }
 
   private loadCounters({ enemies, allies }: Draft): Observable<LoadState<DraftCounter[]>> {
