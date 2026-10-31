@@ -1,4 +1,4 @@
-import { filterHeroes, groupByAttribute } from './hero-filter';
+import { filterHeroes, groupByAttribute } from './hero-search';
 import { Hero } from './hero.models';
 
 const hero = (id: number, localizedName: string, primaryAttr: string): Hero => ({

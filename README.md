@@ -172,6 +172,6 @@ DotaDraft.Api/
   Migrations/              EF Core migrations
 DotaDraft.Api.Tests/       xUnit tests
 DotaDraft.Web/             Angular client (Tailwind CSS, Vitest)
-  src/app/heroes/          API models and HeroApiService
+  src/app/draft/           The draft page: its components, HeroApiService and API models
   src/environments/        API base URL per build configuration
 ```

@@ -5,7 +5,7 @@ import { Observable, Subject, catchError, map, of, startWith, switchMap } from '
 
 import { CounterList } from './counter-list';
 import { HeroApiService } from './hero-api.service';
-import { PrimaryAttr, filterHeroes, groupByAttribute } from './hero-filter';
+import { PrimaryAttr, filterHeroes, groupByAttribute } from './hero-search';
 import { HeroFilters } from './hero-filters';
 import { HeroGrid } from './hero-grid';
 import { DraftCounter, Hero } from './hero.models';
