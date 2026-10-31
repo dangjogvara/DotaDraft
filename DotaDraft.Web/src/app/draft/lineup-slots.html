@@ -1,10 +1,15 @@
 <div class="mb-4">
   <div class="mb-2 flex items-center justify-between">
     <h2 class="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-      Enemy lineup ({{ lineup().length }}/5)
+      {{ label() }} ({{ lineup().length }}/5)
     </h2>
     @if (lineup().length > 0) {
-      <button type="button" class="text-sm text-slate-400 transition hover:text-white" (click)="cleared.emit()">
+      <button
+        type="button"
+        class="text-sm text-slate-400 transition hover:text-white"
+        [attr.aria-label]="'Clear ' + label()"
+        (click)="cleared.emit()"
+      >
         Clear
       </button>
     }
@@ -14,7 +19,7 @@
     @for (hero of slots(); track $index) {
       <li class="relative" data-testid="slot">
         @if (hero) {
-          <div class="overflow-hidden rounded-md bg-slate-800 ring-2 ring-red-500/70">
+          <div class="overflow-hidden rounded-md bg-slate-800 ring-2" [class]="ringClass()">
             @if (hero.imgUrl) {
               <img [src]="hero.imgUrl" alt="" class="aspect-video w-full object-cover" />
             } @else {

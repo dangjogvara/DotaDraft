@@ -1,6 +1,6 @@
 # DotaDraft
 
-A Dota 2 draft helper. Pick up to five enemy heroes, and DotaDraft suggests the heroes that counter that lineup best, using matchup data from public ranked matches via the [OpenDota API](https://docs.opendota.com).
+A Dota 2 draft helper. Pick up to five enemy heroes, and DotaDraft suggests the heroes that counter that lineup best, leaving out any your own team has already picked, using matchup data from public ranked matches via the [OpenDota API](https://docs.opendota.com).
 
 ![DotaDraft on a desktop: an enemy lineup of Anti-Mage, Pudge and Crystal Maiden, the hero grid, and the suggested counters with their edge against each enemy](docs/screenshots/desktop.png)
 
@@ -70,7 +70,7 @@ Secrets never live in the repo. The database password goes in a gitignored `.env
 
    In development it calls the API at `http://localhost:8080` (set in `src/environments/environment.development.ts`). CORS already allows the dev server's origin.
 
-   The enemy lineup is kept in the URL, e.g. `http://localhost:4200/?against=1,14`, so a refresh keeps your picks and you can share a draft as a link.
+   The draft is kept in the URL, e.g. `http://localhost:4200/?against=1,14&team=5` (the enemy lineup, then your own team's picks), so a refresh keeps your picks and you can share a draft as a link. Your team's picks are never suggested as counters.
 
 ## Seeding
 

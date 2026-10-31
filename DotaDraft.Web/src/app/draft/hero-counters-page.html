@@ -29,22 +29,34 @@
       <div
         class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-y-0"
       >
-        <app-lineup-slots
-          class="min-w-0 lg:col-start-1"
-          [lineup]="lineup()"
-          (removed)="removeEnemy($event)"
-          (cleared)="clearLineup()"
-        />
+        <div class="min-w-0 lg:col-start-1">
+          <app-lineup-slots
+            data-testid="enemy-lineup"
+            label="Enemy lineup"
+            team="enemy"
+            [lineup]="enemies()"
+            (removed)="removeHero('enemy', $event)"
+            (cleared)="clearTeam('enemy')"
+          />
+          <app-lineup-slots
+            data-testid="ally-lineup"
+            label="Your team"
+            team="ally"
+            [lineup]="allies()"
+            (removed)="removeHero('ally', $event)"
+            (cleared)="clearTeam('ally')"
+          />
+        </div>
 
         <aside
           class="lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1"
           aria-live="polite"
           data-testid="counters-panel"
         >
-          @if (lineup().length > 0) {
+          @if (enemies().length > 0) {
             <h2 class="mb-3 text-lg font-semibold">
-              @if (lineup().length === 1) {
-                Counters to {{ lineup()[0].localizedName }}
+              @if (enemies().length === 1) {
+                Counters to {{ enemies()[0].localizedName }}
               } @else {
                 Counters to the enemy lineup
               }
@@ -63,7 +75,7 @@
                     OpenDota. The counters appear here by themselves when it's done.
                   </p>
                 } @else {
-                  <app-counter-list [counters]="counterList()" [lineup]="lineup()" />
+                  <app-counter-list [counters]="counterList()" [lineup]="enemies()" />
                 }
               }
             }
@@ -73,6 +85,7 @@
         </aside>
 
         <section class="min-w-0 lg:col-start-1" aria-label="Heroes">
+          <app-team-toggle [(team)]="addingTo" />
           <app-hero-filters [(query)]="query" [(attribute)]="attribute" />
 
           @for (group of heroGroups(); track group.attribute) {
@@ -81,9 +94,10 @@
             </h2>
             <app-hero-grid
               [heroes]="group.heroes"
-              [pickedIds]="pickedIds()"
-              [full]="lineupFull()"
-              (heroSelected)="addEnemy($event)"
+              [enemyIds]="enemyIds()"
+              [allyIds]="allyIds()"
+              [full]="addingToFull()"
+              (heroSelected)="addHero($event)"
             />
           } @empty {
             <p class="text-slate-400" data-testid="no-matches">No heroes match your filters.</p>
