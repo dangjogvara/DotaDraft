@@ -1,5 +1,6 @@
 using DotaDraft.Api.Data;
 using DotaDraft.Api.Dtos;
+using DotaDraft.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -16,35 +17,63 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         // Enemies and excluded heroes are never suggested
         var unavailableIds = enemyIds.Concat(excludedIds).ToList();
 
-        var known = await db.Heroes.Where(h => unavailableIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
-        var unknown = unavailableIds.Except(known).ToList();
+        var unknown = await FindUnknownHeroIdsAsync(unavailableIds, ct);
         if (unknown.Count > 0)
             return new DraftCountersResult([], unknown);
 
-        // Every available hero's results against any of the enemies
+        var candidates = await db.Heroes.AsNoTracking().Where(h => !unavailableIds.Contains(h.Id)).ToListAsync(ct);
+
+        // Heroes without games against any of the enemies have nothing to rank them by, so they're left out
+        var counters = (await ScoreAsync(candidates, enemyIds, ct))
+            .Where(c => c.Matchups.Any(m => m.GamesPlayed > 0))
+            .OrderByDescending(c => c.TotalAdvantage)
+            .ThenByDescending(c => c.Matchups.Sum(e => e.GamesPlayed))
+            .Take(limit)
+            .ToList();
+
+        return new DraftCountersResult(counters, []);
+    }
+
+    /// <summary>How each of your team's heroes does against the enemy lineup, in pick order.</summary>
+    public async Task<TeamMatchupResult> GetTeamMatchupAsync(
+        IReadOnlyList<int> teamIds, IReadOnlyList<int> enemyIds, CancellationToken ct)
+    {
+        var unknown = await FindUnknownHeroIdsAsync(teamIds.Concat(enemyIds).ToList(), ct);
+        if (unknown.Count > 0)
+            return new TeamMatchupResult(null, unknown);
+
+        var heroesById = await db.Heroes.AsNoTracking().Where(h => teamIds.Contains(h.Id)).ToDictionaryAsync(h => h.Id, ct);
+        var heroes = await ScoreAsync(teamIds.Select(id => heroesById[id]).ToList(), enemyIds, ct);
+
+        return new TeamMatchupResult(new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes), []);
+    }
+
+    private async Task<List<int>> FindUnknownHeroIdsAsync(IReadOnlyList<int> heroIds, CancellationToken ct)
+    {
+        var known = await db.Heroes.Where(h => heroIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
+        return heroIds.Except(known).ToList();
+    }
+
+    // Each hero's edge against every enemy, summed, in the order given; see CounterRanking for the formula.
+    // Counter suggestions and your team's matchup both come from here, so their numbers always agree.
+    // An enemy without matchup data contributes 0: no evidence either way
+    private async Task<List<DraftCounterDto>> ScoreAsync(IReadOnlyList<Hero> heroes, IReadOnlyList<int> enemyIds, CancellationToken ct)
+    {
+        var heroIds = heroes.Select(h => h.Id).ToList();
         var matchups = await db.HeroMatchups
             .AsNoTracking()
-            .Where(m => enemyIds.Contains(m.AgainstHeroId) && !unavailableIds.Contains(m.HeroId) && m.GamesPlayed > 0)
+            .Where(m => enemyIds.Contains(m.AgainstHeroId) && heroIds.Contains(m.HeroId) && m.GamesPlayed > 0)
             .Select(m => new { m.HeroId, m.AgainstHeroId, m.Wins, m.GamesPlayed, m.WinRate })
             .ToListAsync(ct);
-
-        var candidateIds = matchups.Select(m => m.HeroId).Distinct().ToList();
-        var heroes = await db.Heroes
-            .AsNoTracking()
-            .Where(h => candidateIds.Contains(h.Id))
-            .ToDictionaryAsync(h => h.Id, ct);
+        var byHero = matchups.ToLookup(m => m.HeroId);
 
         var baselines = await LoadBaselineWinRatesAsync(ct);
 
-        // Sum each candidate's advantage over all enemies, so countering several picks ranks highest.
-        // An enemy without matchup data contributes 0: no evidence either way
-        var counters = matchups
-            .GroupBy(m => m.HeroId)
-            .Select(g =>
+        return heroes
+            .Select(hero =>
             {
-                var hero = heroes[g.Key];
-                var baseline = baselines.GetValueOrDefault(g.Key, 0.5);
-                var byEnemy = g.ToDictionary(m => m.AgainstHeroId);
+                var baseline = baselines.GetValueOrDefault(hero.Id, 0.5);
+                var byEnemy = byHero[hero.Id].ToDictionary(m => m.AgainstHeroId);
 
                 var perEnemy = enemyIds
                     .Select(enemyId => byEnemy.TryGetValue(enemyId, out var m)
@@ -65,12 +94,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
                     ToPoints(baseline),
                     perEnemy);
             })
-            .OrderByDescending(c => c.TotalAdvantage)
-            .ThenByDescending(c => c.Matchups.Sum(e => e.GamesPlayed))
-            .Take(limit)
             .ToList();
-
-        return new DraftCountersResult(counters, []);
     }
 
     // Each hero's overall win rate across all its matchups, as a fraction, so general strength

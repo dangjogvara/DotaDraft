@@ -99,6 +99,7 @@ The full API reference, with every parameter, response and schema, is the OpenAP
 |---|---|---|
 | `GET` | `/api/heroes` | All heroes, sorted by name |
 | `GET` | `/api/counters?against=1&against=14&exclude=5&limit=10` | Top counter-picks against an enemy lineup of 1–5 heroes, leaving out up to 5 `exclude`d heroes such as your own team's picks (`limit` 1–20) |
+| `GET` | `/api/team-matchup?team=82&team=26&against=1&against=14` | How each of your team's 1–5 heroes does against the enemy lineup, scored like a counter suggestion, plus the team's combined edge |
 | `GET` | `/health` | `Healthy` (200) when the API can reach the database, otherwise `Unhealthy` (503) |
 
 `/health` is meant for uptime monitors and hosting platforms. It answers in plain text, isn't listed in the OpenAPI document, and is the same in every environment.
@@ -131,6 +132,8 @@ advantage = raw edge × trust
 - **`k`** is the `Counters:PriorGames` setting (default 30). Raise it to trust small samples less.
 
 The list is sorted by `totalAdvantage`, the per-enemy advantages added up. With one enemy that's just its `advantage`. **Against a lineup**, adding them up ranks a hero that counters several enemies above one that strongly counters only one of them. An enemy without matchup data counts as 0. Heroes in the lineup are never suggested, and neither are heroes passed as `exclude` (for example your own team's picks, which can't be picked twice). `matchups` gives the per-enemy breakdown so you can see what each suggestion is based on. Invalid lineups (none, more than 5, duplicates, unknown IDs), invalid exclusions (more than 5, duplicates, unknown IDs, or a hero that's also in the lineup) and a `limit` outside 1–20 return `400`.
+
+**Your team's matchup** (`/api/team-matchup`) scores each of your own heroes the same way, in pick order, and adds them up into `totalAdvantage`: positive means your lineup tends to do well against theirs. It only looks at 1-vs-1 matchups, not synergy, items or skill, so it isn't a win prediction. A hero with no matchup data scores 0. The same validation applies to `team` as to `against`, and a hero can't be on both teams.
 
 With public match data most matchups have well over 1,000 games, so `trust` is close to 1 and `k` mainly dampens rarely picked heroes.
 

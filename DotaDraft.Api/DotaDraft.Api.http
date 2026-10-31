@@ -16,5 +16,9 @@ Accept: application/json
 GET {{HostAddress}}/api/counters?against=1&against=14&exclude=5
 Accept: application/json
 
+### Your team (Meepo, Lion) against the enemy lineup: each hero's edge per enemy, plus the team's total
+GET {{HostAddress}}/api/team-matchup?team=82&team=26&against=1&against=14
+Accept: application/json
+
 ### Health: "Healthy" (200) when the database is reachable, "Unhealthy" (503) otherwise
 GET {{HostAddress}}/health
