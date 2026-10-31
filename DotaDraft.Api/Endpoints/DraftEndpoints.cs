@@ -41,7 +41,7 @@ public static class DraftEndpoints
     /// Up to 5 distinct hero IDs that can't be picked, such as your own team's picks. None may also be in against.
     /// </param>
     /// <param name="limit">How many counters to return, 1 to 20.</param>
-    internal static async Task<Results<Ok<IReadOnlyList<DraftCounterDto>>, ValidationProblem>> GetDraftCounters(
+    internal static async Task<Results<Ok<IReadOnlyList<HeroScoreDto>>, ValidationProblem>> GetDraftCounters(
         [Required(ErrorMessage = LineupSizeError)]
         [Length(1, MaxEnemies, ErrorMessage = LineupSizeError)]
         [Distinct(ErrorMessage = "Enemy hero IDs must be distinct.")]

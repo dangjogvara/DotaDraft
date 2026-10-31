@@ -44,7 +44,7 @@ public class OpenApiDocumentTests : IAsyncLifetime
     {
         var operation = Operation("/api/counters");
 
-        Assert.Equal("#/components/schemas/DraftCounterDto", SchemaRef(operation, "200"));
+        Assert.Equal("#/components/schemas/HeroScoreDto", SchemaRef(operation, "200"));
         Assert.Equal("#/components/schemas/HttpValidationProblemDetails",
             SchemaRef(operation, "400", "application/problem+json"));
         Assert.Contains("Repeat the key for each hero",

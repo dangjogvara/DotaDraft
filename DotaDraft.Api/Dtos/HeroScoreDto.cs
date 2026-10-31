@@ -11,7 +11,7 @@ namespace DotaDraft.Api.Dtos;
 /// <param name="TotalAdvantage">The per-enemy advantages summed, in percentage points. Suggestions are ranked by this.</param>
 /// <param name="BaselineWinRate">The hero's win rate across all its matchups.</param>
 /// <param name="Matchups">One entry per enemy, in the order requested.</param>
-public record DraftCounterDto(
+public record HeroScoreDto(
     int Id,
     string LocalizedName,
     string PrimaryAttr,

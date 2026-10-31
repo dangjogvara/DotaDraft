@@ -7,7 +7,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 
 import { environment } from '../../environments/environment';
 import { HeroCountersPage, SEED_POLL_MS } from './hero-counters-page';
-import { DraftCounter, Hero } from './hero.models';
+import { HeroScore, Hero } from './hero.models';
 
 const heroesUrl = `${environment.apiBaseUrl}/api/heroes`;
 const draftCountersUrl = `${environment.apiBaseUrl}/api/counters`;
@@ -26,7 +26,7 @@ const antiMage = hero(1, 'Anti-Mage');
 const axe = hero(2, 'Axe', 'str');
 const lineupOfSix = [antiMage, axe, hero(3, 'Bane', 'int'), hero(4, 'Bloodseeker'), hero(5, 'Crystal Maiden', 'int'), hero(6, 'Drow Ranger')];
 
-const weaver: DraftCounter = {
+const weaver: HeroScore = {
   id: 63,
   localizedName: 'Weaver',
   primaryAttr: 'agi',
@@ -531,7 +531,7 @@ describe('HeroCountersPage', () => {
   });
 
   describe("your team's matchup", () => {
-    const axeScored: DraftCounter = {
+    const axeScored: HeroScore = {
       id: 2,
       localizedName: 'Axe',
       primaryAttr: 'str',

@@ -49,11 +49,11 @@ public class DraftEndpointsTests : IAsyncLifetime
 
     private Task<HttpResponseMessage> Get(string query) => _factory.CreateClient().GetAsync($"/api/counters{query}");
 
-    private async Task<List<DraftCounterDto>> GetCounters(string query)
+    private async Task<List<HeroScoreDto>> GetCounters(string query)
     {
         var response = await Get(query);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<List<DraftCounterDto>>())!;
+        return (await response.Content.ReadFromJsonAsync<List<HeroScoreDto>>())!;
     }
 
     [Fact]

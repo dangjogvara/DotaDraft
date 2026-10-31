@@ -19,7 +19,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
     }
 
     /// <summary>The best counter picks against the enemies, never suggesting enemies or excluded heroes.</summary>
-    public async Task<IReadOnlyList<DraftCounterDto>> GetDraftCountersAsync(
+    public async Task<IReadOnlyList<HeroScoreDto>> GetDraftCountersAsync(
         IReadOnlyList<int> enemyIds, IReadOnlyList<int> excludedIds, int limit, CancellationToken ct)
     {
         var unavailableIds = enemyIds.Concat(excludedIds).ToList();
@@ -47,7 +47,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
     // Each hero's edge against every enemy, summed, in the order given; see CounterRanking for the formula.
     // Counter suggestions and your team's matchup both come from here, so their numbers always agree.
     // An enemy without matchup data contributes 0: no evidence either way
-    private async Task<List<DraftCounterDto>> ScoreAsync(IReadOnlyList<Hero> heroes, IReadOnlyList<int> enemyIds, CancellationToken ct)
+    private async Task<List<HeroScoreDto>> ScoreAsync(IReadOnlyList<Hero> heroes, IReadOnlyList<int> enemyIds, CancellationToken ct)
     {
         var heroIds = heroes.Select(h => h.Id).ToList();
         var matchups = await db.HeroMatchups
@@ -75,7 +75,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
                         : new EnemyMatchupDto(enemyId, 0m, null, 0))
                     .ToList();
 
-                return new DraftCounterDto(
+                return new HeroScoreDto(
                     hero.Id,
                     hero.LocalizedName,
                     hero.PrimaryAttr,
