@@ -18,7 +18,7 @@
     @if (heroList().length === 0) {
       <p class="text-slate-400" data-testid="heroes-empty">
         No heroes yet. The API loads them from OpenDota when it first starts, which takes a couple of minutes.
-        Reload the page in a moment.
+        This page updates by itself when they arrive.
       </p>
     } @else {
       <!--
@@ -60,7 +60,7 @@
                 @if (counterList().length === 0) {
                   <p class="text-slate-400" data-testid="counters-empty">
                     No matchup data for these heroes yet. If the API just started, it may still be loading data from
-                    OpenDota, so try again in a couple of minutes.
+                    OpenDota. The counters appear here by themselves when it's done.
                   </p>
                 } @else {
                   <app-counter-list [counters]="counterList()" [lineup]="lineup()" />

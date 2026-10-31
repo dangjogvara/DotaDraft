@@ -1,7 +1,17 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable, Subject, catchError, map, of, startWith, switchMap } from 'rxjs';
+import {
+  Observable,
+  Subject,
+  catchError,
+  map,
+  of,
+  repeat,
+  startWith,
+  switchMap,
+  takeWhile,
+} from 'rxjs';
 
 import { CounterList } from './counter-list';
 import { HeroApiService } from './hero-api.service';
@@ -13,6 +23,19 @@ import { LINEUP_PARAM, lineupFromParam, lineupToParam } from './lineup-param';
 import { LineupSlots, MAX_LINEUP } from './lineup-slots';
 
 type LoadState<T> = { status: 'loading' } | { status: 'loaded'; data: T } | { status: 'error' };
+
+/**
+ * How often to ask again while the API has no data yet. On a fresh database it seeds in the
+ * background for about 1.5 minutes after starting, so an empty answer usually means "not yet".
+ */
+export const SEED_POLL_MS = 15_000;
+
+/** Repeats a request every SEED_POLL_MS while it returns an empty list, and stops at the first non-empty one. */
+const pollWhileEmpty = <T>(request: Observable<T[]>): Observable<T[]> =>
+  request.pipe(
+    repeat({ delay: SEED_POLL_MS }),
+    takeWhile((items) => items.length === 0, true),
+  );
 
 const loadedData = <T>(state: LoadState<T> | null): T | undefined =>
   state?.status === 'loaded' ? state.data : undefined;
@@ -48,7 +71,8 @@ export class HeroCountersPage {
   constructor() {
     this.loadHeroes();
 
-    // switchMap drops a slower response for an earlier lineup when the lineup changes again
+    // switchMap drops a slower response for an earlier lineup when the lineup changes again, and
+    // stops polling for the old lineup
     this.lineupChanges
       .pipe(
         switchMap((lineup) => (lineup.length === 0 ? of(null) : this.loadCounters(lineup))),
@@ -59,13 +83,15 @@ export class HeroCountersPage {
 
   protected loadHeroes(): void {
     this.heroes.set({ status: 'loading' });
-    this.heroApi.getHeroes().subscribe({
-      next: (data) => {
-        this.heroes.set({ status: 'loaded', data });
-        this.restoreLineup(data);
-      },
-      error: () => this.heroes.set({ status: 'error' }),
-    });
+    pollWhileEmpty(this.heroApi.getHeroes())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.heroes.set({ status: 'loaded', data });
+          if (data.length > 0) this.restoreLineup(data);
+        },
+        error: () => this.heroes.set({ status: 'error' }),
+      });
   }
 
   protected addEnemy(hero: Hero): void {
@@ -104,7 +130,7 @@ export class HeroCountersPage {
   }
 
   private loadCounters(lineup: Hero[]): Observable<LoadState<DraftCounter[]>> {
-    return this.heroApi.getDraftCounters(lineup.map((hero) => hero.id)).pipe(
+    return pollWhileEmpty(this.heroApi.getDraftCounters(lineup.map((hero) => hero.id))).pipe(
       map((data): LoadState<DraftCounter[]> => ({ status: 'loaded', data })),
       catchError(() => of<LoadState<DraftCounter[]>>({ status: 'error' })),
       startWith<LoadState<DraftCounter[]>>({ status: 'loading' }),
