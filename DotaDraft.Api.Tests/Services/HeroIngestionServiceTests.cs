@@ -39,10 +39,9 @@ public class HeroIngestionServiceTests
         // OpenDota sends image paths with a trailing empty query string
         _client.Heroes.AddRange([HeroDto(1, "/apps/dota2/images/1.png?"), HeroDto(2)]);
 
-        var result = await CreateService().SeedHeroesAsync();
+        var saved = await CreateService().SeedHeroesAsync();
 
-        Assert.True(result.Succeeded);
-        Assert.Equal(2, result.Saved);
+        Assert.Equal(2, saved);
         var heroes = await _db.Heroes.OrderBy(h => h.Id).ToListAsync();
         Assert.Equal("https://cdn.test/apps/dota2/images/1.png", heroes[0].ImgUrl);
         Assert.Null(heroes[1].ImgUrl);
@@ -54,10 +53,9 @@ public class HeroIngestionServiceTests
         AddHeroes(1);
         _client.Heroes.AddRange([HeroDto(1, "/new.png") with { LocalizedName = "Renamed" }, HeroDto(2)]);
 
-        var result = await CreateService().SeedHeroesAsync();
+        var saved = await CreateService().SeedHeroesAsync();
 
-        Assert.True(result.Succeeded);
-        Assert.Equal(2, result.Saved);
+        Assert.Equal(2, saved);
         var hero = await _db.Heroes.AsNoTracking().SingleAsync(h => h.Id == 1);
         Assert.Equal("Renamed", hero.LocalizedName);
         Assert.Equal("https://cdn.test/new.png", hero.ImgUrl);
@@ -71,36 +69,34 @@ public class HeroIngestionServiceTests
         await CreateService().SeedHeroesAsync();
         _db.ChangeTracker.Clear();
 
-        var result = await CreateService().SeedHeroesAsync();
+        var saved = await CreateService().SeedHeroesAsync();
 
-        Assert.True(result.Succeeded);
-        Assert.Equal(0, result.Saved);
+        Assert.Equal(0, saved);
     }
 
     [Fact]
-    public async Task SeedHeroes_ReturnsUpstreamFailure_WhenClientFails()
+    public async Task SeedHeroes_Throws_WhenClientFails()
     {
         _client.FailHeroStats = true;
 
-        var result = await CreateService().SeedHeroesAsync();
-
-        Assert.Equal(SeedFailure.Upstream, result.Failure);
+        await Assert.ThrowsAsync<OpenDotaException>(() => CreateService().SeedHeroesAsync());
     }
 
     [Fact]
-    public async Task SeedHeroes_ReturnsUpstreamFailure_WhenNoHeroesReturned()
+    public async Task SeedHeroes_Throws_WhenNoHeroesReturned()
     {
-        var result = await CreateService().SeedHeroesAsync();
+        var ex = await Assert.ThrowsAsync<OpenDotaException>(() => CreateService().SeedHeroesAsync());
 
-        Assert.Equal(SeedFailure.Upstream, result.Failure);
+        Assert.Equal("OpenDota returned no heroes.", ex.Message);
     }
 
     [Fact]
-    public async Task SeedMatchups_ReturnsMissingPrerequisite_WhenNoHeroes()
+    public async Task SeedMatchups_Throws_WhenNoHeroes()
     {
-        var result = await CreateService().SeedMatchupsAsync();
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SeedMatchupsAsync());
 
-        Assert.Equal(SeedFailure.MissingPrerequisite, result.Failure);
+        Assert.Contains("Heroes table is empty", ex.Message);
+        Assert.Empty(_client.PublicMatchupRequests);
     }
 
     private static OpenDotaPublicMatchupDto Pair(int heroId, int againstHeroId, int games, int wins) =>
@@ -124,10 +120,9 @@ public class HeroIngestionServiceTests
         _client.PublicMatchups[1000] = [Pair(1, 2, 100, 60), Pair(2, 1, 100, 40), Pair(1, 99, 50, 25)];
         _client.PublicMatchups[900] = [Pair(1, 2, 100, 50), Pair(2, 1, 100, 50)];
 
-        var result = await CreateService().SeedMatchupsAsync();
+        var saved = await CreateService().SeedMatchupsAsync();
 
-        Assert.True(result.Succeeded);
-        Assert.Equal(2, result.Saved);
+        Assert.Equal(2, saved);
         Assert.Equal([(901L, 1000L, (int?)null), (801, 900, null), (701, 800, null)], _client.PublicMatchupRequests);
         var matchup = await _db.HeroMatchups.SingleAsync(m => m.HeroId == 1);
         Assert.Equal(2, matchup.AgainstHeroId);
@@ -156,9 +151,10 @@ public class HeroIngestionServiceTests
         AddMatchup(1, 3, 10, 5);
         _client.PublicMatchups[_client.LatestPublicMatchId] = [Pair(1, 2, 1000, 600)];
 
-        var result = await CreateService(windowCount: 1).SeedMatchupsAsync();
+        var saved = await CreateService(windowCount: 1).SeedMatchupsAsync();
 
-        Assert.True(result.Succeeded);
+        // One row updated, one removed
+        Assert.Equal(2, saved);
         var matchup = await _db.HeroMatchups.AsNoTracking().SingleAsync();
         Assert.Equal((1, 2, 1000, 600, 60.00m),
             (matchup.HeroId, matchup.AgainstHeroId, matchup.GamesPlayed, matchup.Wins, matchup.WinRate));
@@ -171,26 +167,23 @@ public class HeroIngestionServiceTests
         _client.PublicMatchups[_client.LatestPublicMatchId] = [Pair(1, 2, 10, 5), Pair(2, 1, 10, 5)];
         await CreateService(windowCount: 1).SeedMatchupsAsync();
 
-        var result = await CreateService(windowCount: 1).SeedMatchupsAsync();
+        var saved = await CreateService(windowCount: 1).SeedMatchupsAsync();
 
-        Assert.True(result.Succeeded);
-        Assert.Equal(0, result.Saved);
+        Assert.Equal(0, saved);
         Assert.Equal(2, await _db.HeroMatchups.CountAsync());
     }
 
     [Fact]
-    public async Task SeedMatchups_SavesAndReportsFailure_WhenSomeWindowsFail()
+    public async Task SeedMatchups_SavesTheRest_WhenSomeWindowsFail()
     {
         AddHeroes(1, 2);
         _client.LatestPublicMatchId = 1000;
         _client.FailingWindows.Add(900);
         _client.PublicMatchups[1000] = [Pair(1, 2, 100, 60)];
 
-        var result = await CreateService().SeedMatchupsAsync();
+        var saved = await CreateService().SeedMatchupsAsync();
 
-        Assert.Equal(SeedFailure.Upstream, result.Failure);
-        Assert.Equal(1, result.FailedWindows);
-        Assert.Equal(1, result.Saved);
+        Assert.Equal(1, saved);
         Assert.Equal(100, (await _db.HeroMatchups.SingleAsync()).GamesPlayed);
     }
 
@@ -203,23 +196,20 @@ public class HeroIngestionServiceTests
         _client.FailingWindows.UnionWith([1000, 900]);
         _client.PublicMatchups[800] = [Pair(1, 2, 100, 60)];
 
-        var result = await CreateService().SeedMatchupsAsync();
+        var ex = await Assert.ThrowsAsync<OpenDotaException>(() => CreateService().SeedMatchupsAsync());
 
-        Assert.Equal(SeedFailure.Upstream, result.Failure);
-        Assert.Equal(2, result.FailedWindows);
-        Assert.Equal(0, result.Saved);
+        Assert.Equal("Only 1 of 3 match windows could be fetched; existing matchups were kept.", ex.Message);
         Assert.Equal(10, (await _db.HeroMatchups.AsNoTracking().SingleAsync()).GamesPlayed);
     }
 
     [Fact]
-    public async Task SeedMatchups_ReturnsUpstreamFailure_WhenLatestMatchCannotBeFound()
+    public async Task SeedMatchups_Throws_WhenLatestMatchCannotBeFound()
     {
         AddHeroes(1, 2);
         _client.FailLatestPublicMatchId = true;
 
-        var result = await CreateService().SeedMatchupsAsync();
+        await Assert.ThrowsAsync<OpenDotaException>(() => CreateService().SeedMatchupsAsync());
 
-        Assert.Equal(SeedFailure.Upstream, result.Failure);
         Assert.Empty(_client.PublicMatchupRequests);
     }
 

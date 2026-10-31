@@ -53,14 +53,15 @@ public class SeedingWorkerTests : IAsyncLifetime
         return scope.ServiceProvider.GetRequiredService<AppDbContext>().HeroMatchups.Count();
     }
 
-    private void AddExistingMatchup()
+    private void AddExistingData(bool withMatchup)
     {
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Heroes.AddRange(
             new Hero { Id = 1, Name = "npc_dota_hero_1", LocalizedName = "Hero 1", PrimaryAttr = "str" },
             new Hero { Id = 2, Name = "npc_dota_hero_2", LocalizedName = "Hero 2", PrimaryAttr = "agi" });
-        db.HeroMatchups.Add(new HeroMatchup { HeroId = 1, AgainstHeroId = 2, GamesPlayed = 1, Wins = 1, WinRate = 100m });
+        if (withMatchup)
+            db.HeroMatchups.Add(new HeroMatchup { HeroId = 1, AgainstHeroId = 2, GamesPlayed = 1, Wins = 1, WinRate = 100m });
         db.SaveChanges();
     }
 
@@ -102,7 +103,7 @@ public class SeedingWorkerTests : IAsyncLifetime
     [Fact]
     public async Task SkipsTheStartupSeed_WhenMatchupsExist_ThenSeedsAfterTheInterval()
     {
-        AddExistingMatchup();
+        AddExistingData(withMatchup: true);
         await _worker.StartAsync(CancellationToken.None);
 
         var elapsed = await AdvanceUntil(() => _client.HeroStatsRequests > 0);
@@ -111,6 +112,18 @@ public class SeedingWorkerTests : IAsyncLifetime
         Assert.Equal(1, _client.HeroStatsRequests);
         Assert.True(elapsed >= TimeSpan.FromHours(24), $"Seeded after {elapsed}");
         await WaitUntil(() => MatchupCount() == 2);
+    }
+
+    [Fact]
+    public async Task SeedsMatchups_WithTheExistingHeroes_WhenTheHeroRefreshFails()
+    {
+        AddExistingData(withMatchup: false);
+        _client.FailHeroStats = true;
+
+        await _worker.StartAsync(CancellationToken.None);
+
+        await WaitUntil(() => MatchupCount() == 2);
+        Assert.Equal(1, _client.HeroStatsRequests);
     }
 
     [Fact]

@@ -46,15 +46,18 @@ public class SeedingWorker(
 
             logger.LogInformation("Seeding heroes and matchups...");
             var ingestion = scope.ServiceProvider.GetRequiredService<HeroIngestionService>();
-            var heroes = await ingestion.SeedHeroesAsync(stoppingToken);
-            // Runs even if the hero refresh failed, since heroes from an earlier seed are enough
-            var matchups = await ingestion.SeedMatchupsAsync(stoppingToken);
+            try
+            {
+                await ingestion.SeedHeroesAsync(stoppingToken);
+            }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                // Heroes from an earlier seed are enough, so the matchup seed still runs
+                logger.LogError(ex, "Seeding heroes failed; seeding matchups with the existing heroes.");
+            }
 
-            if (heroes.Succeeded && matchups.Succeeded)
-                logger.LogInformation("Seeding finished: {Heroes} heroes and {Matchups} matchups inserted or updated.",
-                    heroes.Saved, matchups.Saved);
-            else
-                logger.LogWarning("Seeding finished with errors: {Error}", heroes.Error ?? matchups.Error);
+            await ingestion.SeedMatchupsAsync(stoppingToken);
+            logger.LogInformation("Seeding finished.");
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -62,8 +65,9 @@ public class SeedingWorker(
         }
         catch (Exception ex)
         {
-            // Keep the worker alive so the next scheduled run still happens
-            logger.LogError(ex, "Seeding failed unexpectedly.");
+            // Keep the worker alive so the next scheduled run still happens. A failed matchup seed
+            // writes nothing, so the existing matchups stay in place
+            logger.LogError(ex, "Seeding failed; the next scheduled run tries again.");
         }
     }
 }

@@ -16,26 +16,15 @@ public class HeroIngestionService(
     private readonly OpenDotaOptions _options = options.Value;
     private readonly MatchupOptions _matchupOptions = matchupOptions.Value;
 
-    public async Task<SeedResult> SeedHeroesAsync(CancellationToken ct = default)
+    // Adds new heroes and updates changed ones. Returns the number of heroes written; throws
+    // OpenDotaException when OpenDota fails, and DbUpdateException when saving fails
+    public async Task<int> SeedHeroesAsync(CancellationToken ct = default)
     {
         logger.LogInformation("Fetching heroes from OpenDota API...");
 
-        IReadOnlyList<OpenDotaHeroDto> heroDtos;
-        try
-        {
-            heroDtos = await openDota.GetHeroStatsAsync(ct);
-        }
-        catch (OpenDotaException ex)
-        {
-            logger.LogError(ex, "Failed to retrieve heroes from OpenDota.");
-            return SeedResult.Failed(SeedFailure.Upstream, "Failed to retrieve heroes from OpenDota.");
-        }
-
+        var heroDtos = await openDota.GetHeroStatsAsync(ct);
         if (heroDtos.Count == 0)
-        {
-            logger.LogWarning("No heroes returned from OpenDota.");
-            return SeedResult.Failed(SeedFailure.Upstream, "OpenDota returned no heroes.");
-        }
+            throw new OpenDotaException("OpenDota returned no heroes.");
 
         var existingHeroes = await db.Heroes.ToDictionaryAsync(h => h.Id, ct);
 
@@ -58,54 +47,32 @@ public class HeroIngestionService(
             hero.ImgUrl = string.IsNullOrWhiteSpace(dto.Img) ? null : $"{_options.SteamCdnBaseUrl}{dto.Img.TrimEnd('?')}";
         }
 
-        var (inserted, updated) = db.ChangeTracker.CountPendingWrites();
-        if (inserted + updated > 0)
+        int saved;
+        try
         {
-            try
-            {
-                await db.SaveChangesAsync(ct);
-                logger.LogInformation("Inserted {Inserted} and updated {Updated} heroes.", inserted, updated);
-            }
-            catch (DbUpdateException ex)
-            {
-                logger.LogError(ex, "Failed to save heroes to the database.");
-                // Detach the failed entities so later saves on this context don't retry them
-                db.ChangeTracker.Clear();
-                return SeedResult.Failed(SeedFailure.Database, "Failed to save heroes to the database.");
-            }
+            saved = await db.SaveChangesAsync(ct);
         }
-        else
+        finally
         {
-            logger.LogInformation("All heroes are already up to date.");
+            // The matchup seed runs on the same context, so it mustn't retry heroes that failed to save
+            db.ChangeTracker.Clear();
         }
 
-        return SeedResult.Success(inserted + updated);
+        logger.LogInformation("Saved {Saved} new or changed heroes.", saved);
+        return saved;
     }
 
     // Sums hero-pair totals over consecutive match ID windows, newest first, then replaces all matchups
     // in one save. Nothing is written unless at least half the windows succeeded, so a bad run can't
-    // swap good data for a tiny sample
-    public async Task<SeedResult> SeedMatchupsAsync(CancellationToken ct = default)
+    // swap good data for a tiny sample. Returns the number of rows written (added, changed or removed);
+    // throws OpenDotaException when too little could be fetched, and DbUpdateException when saving fails
+    public async Task<int> SeedMatchupsAsync(CancellationToken ct = default)
     {
-        var heroes = await db.Heroes.AsNoTracking().OrderBy(h => h.Id).ToListAsync(ct);
-        if (heroes.Count == 0)
-        {
-            logger.LogWarning("Cannot seed matchups: the Heroes table is empty.");
-            return SeedResult.Failed(SeedFailure.MissingPrerequisite, "The Heroes table is empty, so there are no heroes to seed matchups for.");
-        }
+        var validHeroIds = await db.Heroes.Select(h => h.Id).ToHashSetAsync(ct);
+        if (validHeroIds.Count == 0)
+            throw new InvalidOperationException("The Heroes table is empty, so there are no heroes to seed matchups for.");
 
-        var validHeroIds = heroes.Select(h => h.Id).ToHashSet();
-
-        long latestMatchId;
-        try
-        {
-            latestMatchId = await openDota.GetLatestPublicMatchIdAsync(ct);
-        }
-        catch (OpenDotaException ex)
-        {
-            logger.LogError(ex, "Failed to find the latest public match on OpenDota.");
-            return SeedResult.Failed(SeedFailure.Upstream, "Failed to find the latest public match on OpenDota.");
-        }
+        var latestMatchId = await openDota.GetLatestPublicMatchIdAsync(ct);
 
         var windowSize = _matchupOptions.WindowSize;
         var windowCount = _matchupOptions.WindowCount;
@@ -131,7 +98,8 @@ public class HeroIngestionService(
             }
             catch (OpenDotaException ex)
             {
-                logger.LogError(ex, "Failed to retrieve public matchups for match IDs {From}-{To}", fromMatchId, toMatchId);
+                // One failed window isn't fatal; the check below decides whether there's enough data
+                logger.LogWarning(ex, "Failed to retrieve public matchups for match IDs {From}-{To}", fromMatchId, toMatchId);
                 failedWindows++;
                 continue;
             }
@@ -149,13 +117,8 @@ public class HeroIngestionService(
 
         var succeededWindows = windowCount - failedWindows;
         if (succeededWindows * 2 < windowCount || totals.Count == 0)
-        {
-            logger.LogError("Only {Succeeded} of {WindowCount} windows returned data; keeping existing matchups.",
-                succeededWindows, windowCount);
-            return SeedResult.Failed(SeedFailure.Upstream,
-                    $"Only {succeededWindows} of {windowCount} match windows could be fetched; existing matchups were kept.")
-                with { FailedWindows = failedWindows };
-        }
+            throw new OpenDotaException(
+                $"Only {succeededWindows} of {windowCount} match windows could be fetched; existing matchups were kept.");
 
         // Replace the table's contents: update or add every pair seen, and remove pairs that weren't,
         // so no rows from an older seed linger
@@ -174,16 +137,10 @@ public class HeroIngestionService(
         var stale = existingMatchups.Where(e => !totals.ContainsKey(e.Key)).Select(e => e.Value).ToList();
         db.HeroMatchups.RemoveRange(stale);
 
-        var (inserted, updated) = db.ChangeTracker.CountPendingWrites();
+        int saved;
         try
         {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException ex)
-        {
-            logger.LogError(ex, "Failed to save public matchups to the database.");
-            return SeedResult.Failed(SeedFailure.Database, "Failed to save matchups to the database.")
-                with { FailedWindows = failedWindows };
+            saved = await db.SaveChangesAsync(ct);
         }
         finally
         {
@@ -191,15 +148,12 @@ public class HeroIngestionService(
         }
 
         logger.LogInformation(
-            "Public matchup ingestion complete: {Pairs} pairs, {Inserted} inserted, {Updated} updated, {Removed} removed.",
-            totals.Count, inserted, updated, stale.Count);
+            "Public matchup ingestion complete: {Pairs} pairs, {Saved} rows written ({Removed} removed).",
+            totals.Count, saved, stale.Count);
+        if (failedWindows > 0)
+            logger.LogWarning("{Failed} of {WindowCount} match windows failed; matchups were saved from the other {Succeeded}.",
+                failedWindows, windowCount, succeededWindows);
 
-        if (failedWindows == 0)
-            return SeedResult.Success(inserted + updated);
-
-        return SeedResult.Failed(SeedFailure.Upstream,
-                $"{failedWindows} of {windowCount} match windows failed; matchups were saved from the other {succeededWindows}.",
-                inserted + updated)
-            with { FailedWindows = failedWindows };
+        return saved;
     }
 }
