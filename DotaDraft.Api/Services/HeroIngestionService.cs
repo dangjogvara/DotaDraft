@@ -3,6 +3,7 @@ using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using MatchupTotals = System.Collections.Generic.Dictionary<(int HeroId, int AgainstHeroId), (int Games, int Wins)>;
 
 namespace DotaDraft.Api.Services;
 
@@ -73,10 +74,30 @@ public class HeroIngestionService(
             throw new InvalidOperationException("The Heroes table is empty, so there are no heroes to seed matchups for.");
 
         var latestMatchId = await openDota.GetLatestPublicMatchIdAsync(ct);
+        var (totals, failedWindows) = await FetchTotalsAsync(latestMatchId, validHeroIds, ct);
 
+        var windowCount = _matchupOptions.WindowCount;
+        var succeededWindows = windowCount - failedWindows;
+        if (succeededWindows * 2 < windowCount || totals.Count == 0)
+            throw new OpenDotaException(
+                $"Only {succeededWindows} of {windowCount} match windows could be fetched; existing matchups were kept.");
+
+        var saved = await ReplaceMatchupsAsync(totals, ct);
+        if (failedWindows > 0)
+            logger.LogWarning("{Failed} of {WindowCount} match windows failed; matchups were saved from the other {Succeeded}.",
+                failedWindows, windowCount, succeededWindows);
+
+        return saved;
+    }
+
+    // Fetches each window of match IDs, walking back from the newest match, and adds up games and wins per
+    // hero pair. A failed window is logged and counted rather than fatal; the caller decides if enough worked
+    private async Task<(MatchupTotals Totals, int FailedWindows)> FetchTotalsAsync(
+        long latestMatchId, HashSet<int> validHeroIds, CancellationToken ct)
+    {
         var windowSize = _matchupOptions.WindowSize;
         var windowCount = _matchupOptions.WindowCount;
-        var totals = new Dictionary<(int HeroId, int AgainstHeroId), (int Games, int Wins)>();
+        var totals = new MatchupTotals();
         var failedWindows = 0;
 
         logger.LogInformation(
@@ -85,7 +106,7 @@ public class HeroIngestionService(
 
         for (var i = 0; i < windowCount; i++)
         {
-            // Rate limiting: the latest-match query above was the first request
+            // Rate limiting: the latest-match query was the first request
             await Task.Delay(_options.MatchupRequestDelayMs, ct);
 
             var toMatchId = latestMatchId - (long)i * windowSize;
@@ -98,7 +119,6 @@ public class HeroIngestionService(
             }
             catch (OpenDotaException ex)
             {
-                // One failed window isn't fatal; the check below decides whether there's enough data
                 logger.LogWarning(ex, "Failed to retrieve public matchups for match IDs {From}-{To}", fromMatchId, toMatchId);
                 failedWindows++;
                 continue;
@@ -115,13 +135,13 @@ public class HeroIngestionService(
             logger.LogInformation("Fetched window {Window}/{WindowCount} ({Rows} hero pairs).", i + 1, windowCount, rows.Count);
         }
 
-        var succeededWindows = windowCount - failedWindows;
-        if (succeededWindows * 2 < windowCount || totals.Count == 0)
-            throw new OpenDotaException(
-                $"Only {succeededWindows} of {windowCount} match windows could be fetched; existing matchups were kept.");
+        return (totals, failedWindows);
+    }
 
-        // Replace the table's contents: update or add every pair seen, and remove pairs that weren't,
-        // so no rows from an older seed linger
+    // Replaces the table's contents in one save: updates or adds every pair seen, and removes pairs that
+    // weren't, so no rows from an older seed linger. Returns the number of rows written
+    private async Task<int> ReplaceMatchupsAsync(MatchupTotals totals, CancellationToken ct)
+    {
         var existingMatchups = await db.HeroMatchups.ToDictionaryAsync(m => (m.HeroId, m.AgainstHeroId), ct);
         foreach (var ((heroId, againstHeroId), (games, wins)) in totals)
         {
@@ -150,10 +170,6 @@ public class HeroIngestionService(
         logger.LogInformation(
             "Public matchup ingestion complete: {Pairs} pairs, {Saved} rows written ({Removed} removed).",
             totals.Count, saved, stale.Count);
-        if (failedWindows > 0)
-            logger.LogWarning("{Failed} of {WindowCount} match windows failed; matchups were saved from the other {Succeeded}.",
-                failedWindows, windowCount, succeededWindows);
-
         return saved;
     }
 }
