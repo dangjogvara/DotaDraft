@@ -234,7 +234,7 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-panel"]')).toContain('Pick up to five enemy heroes');
   });
 
-  it('stops at five enemies and disables the rest of the grid', async () => {
+  it('stops at five enemies: with the enemy team selected, the rest of the grid is disabled', async () => {
     await open();
     loadHeroes(lineupOfSix);
 
@@ -242,9 +242,11 @@ describe('HeroCountersPage', () => {
       pick(h.localizedName);
       countersRequest(lineupOfSix.slice(0, i + 1).map((x) => x.id)).flush([]);
     });
-    render();
+    // The toggle moves to your team by itself; switch back to check the full enemy lineup
+    addPicksTo('Enemy team');
 
     expect(gridButton('Drow Ranger').disabled).toBe(true);
+    expect(gridButton('Drow Ranger').title).toBe('That team is full');
     expect(text('app-lineup-slots h2')).toContain('5/5');
   });
 
@@ -413,11 +415,10 @@ describe('HeroCountersPage', () => {
       await open();
       loadHeroes(lineupOfSix);
       addPicksTo('My team');
-      for (const h of lineupOfSix.slice(0, 5)) pick(h.localizedName);
+      for (const h of lineupOfSix.slice(0, 4)) pick(h.localizedName);
+      pick(lineupOfSix[4].localizedName);
 
-      expect(gridButton('Drow Ranger').disabled).toBe(true);
-
-      addPicksTo('Enemy team');
+      // Your team is full and the toggle has moved on, so the last hero goes to the enemy
       expect(gridButton('Drow Ranger').disabled).toBe(false);
       pick('Drow Ranger');
       countersRequest([6], [1, 2, 3, 4, 5]).flush([]);
@@ -455,6 +456,77 @@ describe('HeroCountersPage', () => {
       expect(slotNames('ally').slice(0, 2)).toEqual(['Axe', 'Empty']);
       countersRequest([1], [2]).flush([]);
       teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [] });
+    });
+  });
+
+  describe('switching teams when one is full', () => {
+    const tenHeroes = Array.from({ length: 10 }, (_, i) => hero(i + 1, `Hero ${i + 1}`));
+    const selectedTeam = () =>
+      el().querySelector('app-team-toggle button[aria-pressed="true"]')?.textContent?.trim();
+    /** Picks heroes for the selected team, answering every request they cause. */
+    function pickAll(names: string[]) {
+      for (const name of names) {
+        pick(name);
+        http.match(() => true).forEach((req) => req.flush(req.request.url === teamMatchupUrl ? { totalAdvantage: 0, heroes: [] } : []));
+        render();
+      }
+    }
+    const names = (from: number, to: number) => tenHeroes.slice(from - 1, to).map((h) => h.localizedName);
+
+    it('switches to your team once the enemy lineup is full', async () => {
+      await open();
+      loadHeroes(tenHeroes);
+
+      pickAll(names(1, 4));
+      expect(selectedTeam()).toBe('Enemy team');
+      pickAll(names(5, 5));
+
+      expect(selectedTeam()).toBe('My team');
+      pickAll(names(6, 6));
+      expect(slotNames('ally')[0]).toBe('Hero 6');
+    });
+
+    it('switches to the enemy team once your team is full', async () => {
+      await open();
+      loadHeroes(tenHeroes);
+      addPicksTo('My team');
+
+      pickAll(names(1, 5));
+
+      expect(selectedTeam()).toBe('Enemy team');
+    });
+
+    it('stays put when both teams are full', async () => {
+      await open();
+      loadHeroes(tenHeroes);
+      addPicksTo('My team');
+      pickAll(names(1, 5));
+
+      pickAll(names(6, 10));
+
+      expect(selectedTeam()).toBe('Enemy team');
+    });
+
+    it("doesn't switch back when a hero is removed, and can still be switched by hand", async () => {
+      await open();
+      loadHeroes(tenHeroes);
+      pickAll(names(1, 5));
+
+      el().querySelector<HTMLButtonElement>('[aria-label="Remove Hero 1"]')!.click();
+      render();
+      http.match(() => true).forEach((req) => req.flush([]));
+      expect(selectedTeam()).toBe('My team');
+
+      addPicksTo('Enemy team');
+      expect(selectedTeam()).toBe('Enemy team');
+    });
+
+    it('starts on your team when a link already has five enemies', async () => {
+      await open('/?against=1,2,3,4,5');
+      loadHeroes(tenHeroes);
+      countersRequest([1, 2, 3, 4, 5]).flush([]);
+
+      expect(selectedTeam()).toBe('My team');
     });
   });
 
