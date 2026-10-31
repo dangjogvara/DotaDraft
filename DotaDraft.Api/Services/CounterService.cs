@@ -10,17 +10,21 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 {
     private readonly int _priorGames = options.Value.PriorGames;
 
-    public async Task<DraftCountersResult> GetDraftCountersAsync(IReadOnlyList<int> enemyIds, int limit, CancellationToken ct)
+    public async Task<DraftCountersResult> GetDraftCountersAsync(
+        IReadOnlyList<int> enemyIds, IReadOnlyList<int> excludedIds, int limit, CancellationToken ct)
     {
-        var known = await db.Heroes.Where(h => enemyIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
-        var unknown = enemyIds.Except(known).ToList();
+        // Enemies and excluded heroes are never suggested
+        var unavailableIds = enemyIds.Concat(excludedIds).ToList();
+
+        var known = await db.Heroes.Where(h => unavailableIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
+        var unknown = unavailableIds.Except(known).ToList();
         if (unknown.Count > 0)
             return new DraftCountersResult([], unknown);
 
-        // Every non-enemy hero's results against any of the enemies
+        // Every available hero's results against any of the enemies
         var matchups = await db.HeroMatchups
             .AsNoTracking()
-            .Where(m => enemyIds.Contains(m.AgainstHeroId) && !enemyIds.Contains(m.HeroId) && m.GamesPlayed > 0)
+            .Where(m => enemyIds.Contains(m.AgainstHeroId) && !unavailableIds.Contains(m.HeroId) && m.GamesPlayed > 0)
             .Select(m => new { m.HeroId, m.AgainstHeroId, m.Wins, m.GamesPlayed, m.WinRate })
             .ToListAsync(ct);
 

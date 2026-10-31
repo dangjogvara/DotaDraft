@@ -76,6 +76,15 @@ public class DraftEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task LeavesOutExcludedHeroes()
+    {
+        // Hero 3 would rank first, but is already on the user's team
+        var counters = await GetCounters("?against=1&against=2&exclude=3");
+
+        Assert.Equal([4, 5], counters.Select(c => c.Id));
+    }
+
+    [Fact]
     public async Task ReturnsPerEnemyBreakdown_InRequestOrder_WithZeroForMissingData()
     {
         var hero4 = (await GetCounters("?against=2&against=1")).Single(c => c.Id == 4);
@@ -120,5 +129,31 @@ public class DraftEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.Contains(expectedError, Assert.Single(problem!.Errors["against"]));
+    }
+
+    [Theory]
+    [InlineData("&exclude=3&exclude=4&exclude=5&exclude=6&exclude=7&exclude=8", "at most 5")]
+    [InlineData("&exclude=3&exclude=3", "distinct")]
+    [InlineData("&exclude=3&exclude=999", "Unknown hero IDs: 999")]
+    [InlineData("&exclude=3&exclude=1", "both enemies and excluded: 1")]
+    public async Task RejectsInvalidExclusions(string exclude, string expectedError)
+    {
+        var response = await Get($"?against=1&against=2{exclude}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Contains(expectedError, Assert.Single(problem!.Errors["exclude"]));
+        Assert.False(problem.Errors.ContainsKey("against"));
+    }
+
+    [Fact]
+    public async Task ReportsUnknownIds_UnderTheParameterTheyCameFrom()
+    {
+        var response = await Get("?against=1&against=998&exclude=999");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Equal("Unknown hero IDs: 998.", Assert.Single(problem!.Errors["against"]));
+        Assert.Equal("Unknown hero IDs: 999.", Assert.Single(problem.Errors["exclude"]));
     }
 }
