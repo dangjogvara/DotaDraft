@@ -125,6 +125,15 @@ export class HeroCountersPage {
 
     if (this.addingTo() === 'enemy') this.setDraft({ enemies: [...this.enemies(), hero], allies: this.allies() });
     else this.setDraft({ enemies: this.enemies(), allies: [...this.allies(), hero] });
+    this.switchTeamIfFull();
+  }
+
+  // Moves the toggle to the other team once the selected one is full, if the other still has room,
+  // so the next click on the grid isn't wasted. Removing heroes never switches
+  private switchTeamIfFull(): void {
+    const other: Team = this.addingTo() === 'enemy' ? 'ally' : 'enemy';
+    const otherCount = (other === 'enemy' ? this.enemies() : this.allies()).length;
+    if (this.addingToFull() && otherCount < MAX_LINEUP) this.addingTo.set(other);
   }
 
   protected removeHero(team: Team, hero: Hero): void {
@@ -171,6 +180,7 @@ export class HeroCountersPage {
     const allies = lineupFromParam(params.get(TEAM_PARAM), heroes).filter((hero) => !enemyIds.has(hero.id));
 
     if (enemies.length > 0 || allies.length > 0) this.setDraft({ enemies, allies });
+    this.switchTeamIfFull();
   }
 
   private loadTeamMatchup({ enemies, allies }: Draft): Observable<LoadState<TeamMatchup>> {
