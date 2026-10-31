@@ -1,6 +1,12 @@
 # DotaDraft
 
-A Dota 2 draft helper. Given an enemy hero, DotaDraft suggests the heroes that counter it best, using hero matchup data from the [OpenDota API](https://docs.opendota.com).
+A Dota 2 draft helper. Pick up to five enemy heroes, and DotaDraft suggests the heroes that counter that lineup best, using matchup data from public ranked matches via the [OpenDota API](https://docs.opendota.com).
+
+![DotaDraft on a desktop: an enemy lineup of Anti-Mage, Pudge and Crystal Maiden, the hero grid, and the suggested counters with their edge against each enemy](docs/screenshots/desktop.png)
+
+<p align="center">
+  <img src="docs/screenshots/phone.png" width="300" alt="The same draft on a phone, with the counters right under the enemy lineup">
+</p>
 
 The backend is an ASP.NET Core Minimal API with PostgreSQL. The frontend is an Angular app styled with Tailwind CSS (`DotaDraft.Web/`).
 
@@ -175,3 +181,7 @@ DotaDraft.Web/             Angular client (Tailwind CSS, Vitest)
   src/app/draft/           The draft page: its components, HeroApiService and API models
   src/environments/        API base URL per build configuration
 ```
+
+## License
+
+The code is under the [MIT License](LICENSE). Dota 2, its hero names and images are the property of Valve Corporation. DotaDraft isn't affiliated with or endorsed by Valve or OpenDota.
