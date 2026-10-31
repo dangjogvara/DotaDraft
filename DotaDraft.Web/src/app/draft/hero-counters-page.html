@@ -46,6 +46,8 @@
             (removed)="removeHero('ally', $event)"
             (cleared)="clearTeam('ally')"
           />
+          <!-- With the lineups, so phones show it before the counters, not below them -->
+          <app-team-toggle [(team)]="addingTo" />
         </div>
 
         <aside
@@ -85,7 +87,6 @@
         </aside>
 
         <section class="min-w-0 lg:col-start-1" aria-label="Heroes">
-          <app-team-toggle [(team)]="addingTo" />
           <app-hero-filters [(query)]="query" [(attribute)]="attribute" />
 
           @for (group of heroGroups(); track group.attribute) {
