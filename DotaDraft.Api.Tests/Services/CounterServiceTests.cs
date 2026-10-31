@@ -40,10 +40,9 @@ public class CounterServiceTests
     [Fact]
     public async Task GetDraftCounters_ReturnsEmpty_ForHeroWithoutMatchups()
     {
-        var result = await CreateService().GetDraftCountersAsync([1], [], 5, CancellationToken.None);
+        var counters = await CreateService().GetDraftCountersAsync([1], [], 5, CancellationToken.None);
 
-        Assert.Empty(result.Counters);
-        Assert.Empty(result.UnknownHeroIds);
+        Assert.Empty(counters);
     }
 
     [Fact]
@@ -55,17 +54,16 @@ public class CounterServiceTests
         var unsmoothed = await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None);
         var smoothed = await CreateService(priorGames: 10).GetDraftCountersAsync([1], [], 5, CancellationToken.None);
 
-        Assert.Equal(10m, Assert.Single(unsmoothed.Counters).TotalAdvantage);
-        Assert.Equal(5m, Assert.Single(smoothed.Counters).TotalAdvantage);
+        Assert.Equal(10m, Assert.Single(unsmoothed).TotalAdvantage);
+        Assert.Equal(5m, Assert.Single(smoothed).TotalAdvantage);
     }
 
     [Fact]
-    public async Task GetDraftCounters_ReportsEveryUnknownId_InRequestOrder()
+    public async Task FindUnknownHeroIds_ReportsEveryUnknownId_InRequestOrder()
     {
-        var result = await CreateService().GetDraftCountersAsync([98, 1, 99], [], 5, CancellationToken.None);
+        var unknown = await CreateService().FindUnknownHeroIdsAsync([98, 1, 99], CancellationToken.None);
 
-        Assert.Equal([98, 99], result.UnknownHeroIds);
-        Assert.Empty(result.Counters);
+        Assert.Equal([98, 99], unknown);
     }
 
     [Fact]
@@ -74,10 +72,9 @@ public class CounterServiceTests
         // Both have the same advantage over hero 1 with no smoothing; hero 3 has more games behind it
         AddMatchups((2, 1, 6, 10), (2, 4, 4, 10), (3, 1, 60, 100), (3, 4, 40, 100));
 
-        var result = await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None);
+        var counters = await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None);
 
-        Assert.Empty(result.UnknownHeroIds);
-        Assert.Equal([3, 2], result.Counters.Select(c => c.Id));
-        Assert.Equal(result.Counters[0].TotalAdvantage, result.Counters[1].TotalAdvantage);
+        Assert.Equal([3, 2], counters.Select(c => c.Id));
+        Assert.Equal(counters[0].TotalAdvantage, counters[1].TotalAdvantage);
     }
 }
