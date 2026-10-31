@@ -11,47 +11,37 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 {
     private readonly int _priorGames = options.Value.PriorGames;
 
-    public async Task<DraftCountersResult> GetDraftCountersAsync(
+    /// <summary>The IDs that aren't known heroes, in the order given. Callers check this before the methods below.</summary>
+    public async Task<IReadOnlyList<int>> FindUnknownHeroIdsAsync(IReadOnlyList<int> heroIds, CancellationToken ct)
+    {
+        var known = await db.Heroes.Where(h => heroIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
+        return heroIds.Except(known).ToList();
+    }
+
+    /// <summary>The best counter picks against the enemies, never suggesting enemies or excluded heroes.</summary>
+    public async Task<IReadOnlyList<DraftCounterDto>> GetDraftCountersAsync(
         IReadOnlyList<int> enemyIds, IReadOnlyList<int> excludedIds, int limit, CancellationToken ct)
     {
-        // Enemies and excluded heroes are never suggested
         var unavailableIds = enemyIds.Concat(excludedIds).ToList();
-
-        var unknown = await FindUnknownHeroIdsAsync(unavailableIds, ct);
-        if (unknown.Count > 0)
-            return new DraftCountersResult([], unknown);
-
         var candidates = await db.Heroes.AsNoTracking().Where(h => !unavailableIds.Contains(h.Id)).ToListAsync(ct);
 
         // Heroes without games against any of the enemies have nothing to rank them by, so they're left out
-        var counters = (await ScoreAsync(candidates, enemyIds, ct))
+        return (await ScoreAsync(candidates, enemyIds, ct))
             .Where(c => c.Matchups.Any(m => m.GamesPlayed > 0))
             .OrderByDescending(c => c.TotalAdvantage)
             .ThenByDescending(c => c.Matchups.Sum(e => e.GamesPlayed))
             .Take(limit)
             .ToList();
-
-        return new DraftCountersResult(counters, []);
     }
 
     /// <summary>How each of your team's heroes does against the enemy lineup, in pick order.</summary>
-    public async Task<TeamMatchupResult> GetTeamMatchupAsync(
+    public async Task<TeamMatchupDto> GetTeamMatchupAsync(
         IReadOnlyList<int> teamIds, IReadOnlyList<int> enemyIds, CancellationToken ct)
     {
-        var unknown = await FindUnknownHeroIdsAsync(teamIds.Concat(enemyIds).ToList(), ct);
-        if (unknown.Count > 0)
-            return new TeamMatchupResult(null, unknown);
-
         var heroesById = await db.Heroes.AsNoTracking().Where(h => teamIds.Contains(h.Id)).ToDictionaryAsync(h => h.Id, ct);
         var heroes = await ScoreAsync(teamIds.Select(id => heroesById[id]).ToList(), enemyIds, ct);
 
-        return new TeamMatchupResult(new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes), []);
-    }
-
-    private async Task<List<int>> FindUnknownHeroIdsAsync(IReadOnlyList<int> heroIds, CancellationToken ct)
-    {
-        var known = await db.Heroes.Where(h => heroIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
-        return heroIds.Except(known).ToList();
+        return new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes);
     }
 
     // Each hero's edge against every enemy, summed, in the order given; see CounterRanking for the formula.

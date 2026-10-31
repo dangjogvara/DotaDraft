@@ -29,8 +29,8 @@ public static class DraftEndpoints
     }
 
     // The attributes are checked by the framework's validation (AddValidation) before the handler runs,
-    // returning a 400 ValidationProblem. The overlap check spans two parameters, so the handler does it;
-    // only the unknown-ID check needs the database, so CounterService does that one
+    // returning a 400 ValidationProblem. ValidateHeroIdsAsync then does the checks that span two parameters
+    // or need the database
     /// <summary>Best counter picks against an enemy lineup.</summary>
     /// <remarks>
     /// Ranked by each hero's advantage summed over the enemies, so heroes that counter several picks rank highest.
@@ -54,20 +54,11 @@ public static class DraftEndpoints
         CancellationToken ct = default)
     {
         exclude ??= [];
-        var inBoth = against!.Intersect(exclude).ToList();
-        if (inBoth.Count > 0)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["exclude"] = [$"Hero IDs can't be both enemies and excluded: {string.Join(", ", inBoth)}."]
-            });
-        }
+        if (await ValidateHeroIdsAsync(counters, against!, ("exclude", exclude), "can't be both enemies and excluded", ct)
+            is { } problem)
+            return problem;
 
-        var result = await counters.GetDraftCountersAsync(against, exclude, limit, ct);
-        if (result.UnknownHeroIds.Count > 0)
-            return UnknownHeroes(result.UnknownHeroIds, ("against", against), ("exclude", exclude));
-
-        return TypedResults.Ok(result.Counters);
+        return TypedResults.Ok(await counters.GetDraftCountersAsync(against!, exclude, limit, ct));
     }
 
     /// <summary>How your team's heroes do against an enemy lineup.</summary>
@@ -89,27 +80,33 @@ public static class DraftEndpoints
         CounterService counters,
         CancellationToken ct = default)
     {
-        var inBoth = team!.Intersect(against!).ToList();
+        if (await ValidateHeroIdsAsync(counters, against!, ("team", team!), "can't be on both teams", ct) is { } problem)
+            return problem;
+
+        return TypedResults.Ok(await counters.GetTeamMatchupAsync(team!, against!, ct));
+    }
+
+    // Checks the enemy IDs together with one other hero-ID parameter: no hero may be in both (reported under
+    // the other parameter), and every ID must be a known hero (reported under the parameter it came from).
+    // Returns null when they're valid
+    private static async Task<ValidationProblem?> ValidateHeroIdsAsync(
+        CounterService counters, int[] against, (string Name, int[] Ids) other, string inBothError, CancellationToken ct)
+    {
+        var inBoth = against.Intersect(other.Ids).ToList();
         if (inBoth.Count > 0)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["team"] = [$"Hero IDs can't be on both teams: {string.Join(", ", inBoth)}."]
+                [other.Name] = [$"Hero IDs {inBothError}: {string.Join(", ", inBoth)}."]
             });
         }
 
-        var result = await counters.GetTeamMatchupAsync(team, against, ct);
-        if (result.Matchup is null)
-            return UnknownHeroes(result.UnknownHeroIds, ("team", team), ("against", against));
+        var unknownIds = await counters.FindUnknownHeroIdsAsync([.. against, .. other.Ids], ct);
+        if (unknownIds.Count == 0)
+            return null;
 
-        return TypedResults.Ok(result.Matchup);
-    }
-
-    // Reports unknown IDs under the parameter each one came from
-    private static ValidationProblem UnknownHeroes(IReadOnlyList<int> unknownIds, params (string Name, int[] Ids)[] parameters)
-    {
         var errors = new Dictionary<string, string[]>();
-        foreach (var (name, ids) in parameters)
+        foreach (var (name, ids) in new[] { ("against", against), other })
         {
             var unknown = ids.Where(unknownIds.Contains).ToList();
             if (unknown.Count > 0)
