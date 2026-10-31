@@ -156,4 +156,64 @@ public class DraftEndpointsTests : IAsyncLifetime
         Assert.Equal("Unknown hero IDs: 998.", Assert.Single(problem!.Errors["against"]));
         Assert.Equal("Unknown hero IDs: 999.", Assert.Single(problem.Errors["exclude"]));
     }
+
+    private async Task<TeamMatchupDto> GetTeamMatchup(string query)
+    {
+        var response = await _factory.CreateClient().GetAsync($"/api/team-matchup{query}");
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<TeamMatchupDto>())!;
+    }
+
+    [Fact]
+    public async Task TeamMatchup_ScoresEachHeroInPickOrder_AndSumsThem()
+    {
+        var matchup = await GetTeamMatchup("?team=4&team=3&against=1&against=2");
+
+        Assert.Equal([4, 3], matchup.Heroes.Select(h => h.Id));
+        Assert.Equal(19.23m, matchup.Heroes[0].TotalAdvantage);
+        Assert.Equal(20.52m, matchup.Heroes[1].TotalAdvantage);
+        Assert.Equal(39.75m, matchup.TotalAdvantage);
+    }
+
+    [Fact]
+    public async Task TeamMatchup_ScoresHeroesExactlyLikeCounterSuggestions()
+    {
+        var counters = await GetCounters("?against=1&against=2");
+        var matchup = await GetTeamMatchup("?team=3&team=4&team=5&against=1&against=2");
+
+        foreach (var hero in matchup.Heroes)
+        {
+            var counter = counters.Single(c => c.Id == hero.Id);
+            Assert.Equal(counter with { Matchups = [] }, hero with { Matchups = [] });
+            Assert.Equal(counter.Matchups, hero.Matchups);
+        }
+    }
+
+    [Fact]
+    public async Task TeamMatchup_IncludesHeroesWithoutData_AsZero()
+    {
+        // Hero 6 has no matchup data of its own, so it has no edge to show
+        var hero = Assert.Single((await GetTeamMatchup("?team=6&against=1")).Heroes);
+
+        Assert.Equal(6, hero.Id);
+        Assert.Equal(0m, hero.TotalAdvantage);
+        Assert.Equal([new EnemyMatchupDto(1, 0m, null, 0)], hero.Matchups);
+    }
+
+    [Theory]
+    [InlineData("?against=1", "team", "Pass 1 to 5 hero IDs for your team")]
+    [InlineData("?team=3&team=4&team=5&team=6&team=7&team=8&against=1", "team", "Pass 1 to 5 hero IDs for your team")]
+    [InlineData("?team=3&team=3&against=1", "team", "distinct")]
+    [InlineData("?team=3&team=999&against=1", "team", "Unknown hero IDs: 999")]
+    [InlineData("?team=3&team=1&against=1", "team", "on both teams: 1")]
+    [InlineData("?team=3", "against", "Pass 1 to 5 enemy hero IDs")]
+    [InlineData("?team=3&against=998", "against", "Unknown hero IDs: 998")]
+    public async Task TeamMatchup_RejectsInvalidTeams(string query, string parameter, string expectedError)
+    {
+        var response = await _factory.CreateClient().GetAsync($"/api/team-matchup{query}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Contains(expectedError, Assert.Single(problem!.Errors[parameter]));
+    }
 }

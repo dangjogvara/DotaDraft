@@ -25,6 +25,7 @@ public class OpenApiDocumentTests : IAsyncLifetime
     {
         { "/api/heroes", "get", "GetHeroes", "Heroes" },
         { "/api/counters", "get", "GetDraftCounters", "Counters" },
+        { "/api/team-matchup", "get", "GetTeamMatchup", "Counters" },
     };
 
     [Theory]
@@ -48,6 +49,17 @@ public class OpenApiDocumentTests : IAsyncLifetime
             SchemaRef(operation, "400", "application/problem+json"));
         Assert.Contains("Repeat the key for each hero",
             (string?)operation["parameters"]!.AsArray().Single(p => (string?)p!["name"] == "against")!["description"]);
+    }
+
+    [Fact]
+    public void TeamMatchup_DescribesSuccessAndValidationResponses()
+    {
+        var operation = Operation("/api/team-matchup");
+
+        Assert.Equal("#/components/schemas/TeamMatchupDto", SchemaRef(operation, "200"));
+        Assert.Equal("#/components/schemas/HttpValidationProblemDetails",
+            SchemaRef(operation, "400", "application/problem+json"));
+        Assert.Contains("isn't a win prediction", (string?)operation["description"]);
     }
 
     [Fact]

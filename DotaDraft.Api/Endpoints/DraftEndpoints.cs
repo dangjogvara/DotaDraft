@@ -13,12 +13,18 @@ public static class DraftEndpoints
 
     private const string LineupSizeError = "Pass 1 to 5 enemy hero IDs, e.g. ?against=1&against=14.";
     private const string ExcludeSizeError = "Pass at most 5 hero IDs to exclude, e.g. &exclude=5&exclude=8.";
+    private const string TeamSizeError = "Pass 1 to 5 hero IDs for your team, e.g. ?team=5&team=8.";
 
     public static void RegisterDraftEndpoints(this WebApplication app)
     {
         // Repeated keys bind to the array: /api/counters?against=1&against=14
         app.MapGet("/api/counters", GetDraftCounters)
             .WithName(nameof(GetDraftCounters))
+            .WithTags("Counters");
+
+        // /api/team-matchup?team=5&team=8&against=1&against=14
+        app.MapGet("/api/team-matchup", GetTeamMatchup)
+            .WithName(nameof(GetTeamMatchup))
             .WithTags("Counters");
     }
 
@@ -59,18 +65,56 @@ public static class DraftEndpoints
 
         var result = await counters.GetDraftCountersAsync(against, exclude, limit, ct);
         if (result.UnknownHeroIds.Count > 0)
-        {
-            // Reported under the parameter each unknown ID came from
-            var errors = new Dictionary<string, string[]>();
-            foreach (var (name, ids) in new[] { ("against", against), ("exclude", exclude) })
-            {
-                var unknown = ids.Where(result.UnknownHeroIds.Contains).ToList();
-                if (unknown.Count > 0)
-                    errors[name] = [$"Unknown hero IDs: {string.Join(", ", unknown)}."];
-            }
-            return TypedResults.ValidationProblem(errors);
-        }
+            return UnknownHeroes(result.UnknownHeroIds, ("against", against), ("exclude", exclude));
 
         return TypedResults.Ok(result.Counters);
+    }
+
+    /// <summary>How your team's heroes do against an enemy lineup.</summary>
+    /// <remarks>
+    /// Each of your heroes is scored exactly like a counter suggestion: its advantage against each enemy, summed.
+    /// The total adds up your whole team. It's based on 1-vs-1 matchups only, so it isn't a win prediction.
+    /// </remarks>
+    /// <param name="team">1 to 5 distinct hero IDs on your team, in pick order. None may also be in against.</param>
+    /// <param name="against">1 to 5 distinct enemy hero IDs.</param>
+    internal static async Task<Results<Ok<TeamMatchupDto>, ValidationProblem>> GetTeamMatchup(
+        [Required(ErrorMessage = TeamSizeError)]
+        [Length(1, MaxEnemies, ErrorMessage = TeamSizeError)]
+        [Distinct(ErrorMessage = "Your team's hero IDs must be distinct.")]
+        int[]? team,
+        [Required(ErrorMessage = LineupSizeError)]
+        [Length(1, MaxEnemies, ErrorMessage = LineupSizeError)]
+        [Distinct(ErrorMessage = "Enemy hero IDs must be distinct.")]
+        int[]? against,
+        CounterService counters,
+        CancellationToken ct = default)
+    {
+        var inBoth = team!.Intersect(against!).ToList();
+        if (inBoth.Count > 0)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["team"] = [$"Hero IDs can't be on both teams: {string.Join(", ", inBoth)}."]
+            });
+        }
+
+        var result = await counters.GetTeamMatchupAsync(team, against, ct);
+        if (result.Matchup is null)
+            return UnknownHeroes(result.UnknownHeroIds, ("team", team), ("against", against));
+
+        return TypedResults.Ok(result.Matchup);
+    }
+
+    // Reports unknown IDs under the parameter each one came from
+    private static ValidationProblem UnknownHeroes(IReadOnlyList<int> unknownIds, params (string Name, int[] Ids)[] parameters)
+    {
+        var errors = new Dictionary<string, string[]>();
+        foreach (var (name, ids) in parameters)
+        {
+            var unknown = ids.Where(unknownIds.Contains).ToList();
+            if (unknown.Count > 0)
+                errors[name] = [$"Unknown hero IDs: {string.Join(", ", unknown)}."];
+        }
+        return TypedResults.ValidationProblem(errors);
     }
 }
