@@ -126,13 +126,15 @@ describe('HeroCountersPage', () => {
     expect(text('[data-testid="counters-panel"]')).toContain('Pick up to five enemy heroes');
   });
 
-  it('puts the counters between the lineup and the hero grid, the order phones stack them in', async () => {
+  it('puts the lineups and team toggle first, then the counters, then the hero grid: the order phones stack them in', async () => {
     await open();
     loadHeroes();
 
     const all = [...el().querySelectorAll('*')];
     const positions = [
-      'app-lineup-slots',
+      '[data-testid="enemy-lineup"]',
+      '[data-testid="ally-lineup"]',
+      'app-team-toggle',
       '[data-testid="counters-panel"]',
       'section[aria-label="Heroes"]',
     ].map((selector) => all.indexOf(el().querySelector(selector)!));
