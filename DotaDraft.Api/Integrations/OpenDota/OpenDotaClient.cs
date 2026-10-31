@@ -15,7 +15,7 @@ public class OpenDotaClient(HttpClient httpClient) : IOpenDotaClient
     {
         var rows = await QueryExplorerAsync<OpenDotaMatchIdRow>("SELECT max(match_id) AS match_id FROM public_matches", ct);
         return rows.FirstOrDefault()?.MatchId
-               ?? throw new OpenDotaException("OpenDota returned no public matches.", new InvalidDataException());
+               ?? throw new OpenDotaException("OpenDota returned no public matches.");
     }
 
     public Task<IReadOnlyList<OpenDotaPublicMatchupDto>> GetPublicMatchupsAsync(

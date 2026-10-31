@@ -37,7 +37,7 @@ npx ng build
 
 ## Code conventions
 
-- One top-level type (class, record, enum or interface) per file, named after the type, e.g. `SeedFailure` in `SeedFailure.cs`.
+- One top-level type (class, record, enum or interface) per file, named after the type, e.g. `SeedingWorker` in `SeedingWorker.cs`.
 - `Endpoints/`: one static class per area, registered from `Program.cs`. Handlers return `TypedResults` with typed return types (`Results<Ok<T>, ProblemHttpResult>`), and are mapped with `WithName`, `WithTags` and `ProducesProblem` for status codes the types can't express. Handlers are `internal`, not `private`, so their `///` summaries reach the OpenAPI document (`/openapi/v1.json`, browsable at `/scalar` in Development). Every error is ProblemDetails: return `TypedResults.Problem`/`ValidationProblem`; empty status codes and unhandled exceptions are converted by `UseStatusCodePages`/`UseExceptionHandler` (exception details only in Development).
 - `Dtos/` holds this API's response contracts. Return DTOs, never EF entities.
 - `Integrations/OpenDota/`: the typed client (`IOpenDotaClient`), its DTOs and options. It's registered via `AddOpenDotaClient()`, which includes the retry pipeline. It throws `OpenDotaException` for upstream failures.
