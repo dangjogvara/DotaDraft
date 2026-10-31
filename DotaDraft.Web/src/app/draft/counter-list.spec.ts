@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CounterList } from './counter-list';
-import { DraftCounter, Hero } from './hero.models';
+import { HeroScore, Hero } from './hero.models';
 
 const enemy = (id: number, localizedName: string): Hero => ({
   id,
@@ -15,7 +15,7 @@ const enemy = (id: number, localizedName: string): Hero => ({
 describe('CounterList', () => {
   let fixture: ComponentFixture<CounterList>;
 
-  const counter = (overrides: Partial<DraftCounter>): DraftCounter => ({
+  const counter = (overrides: Partial<HeroScore>): HeroScore => ({
     id: 63,
     localizedName: 'Weaver',
     primaryAttr: 'agi',
@@ -26,7 +26,7 @@ describe('CounterList', () => {
     ...overrides,
   });
 
-  function render(counters: DraftCounter[], lineup: Hero[] = [enemy(1, 'Anti-Mage')]) {
+  function render(counters: HeroScore[], lineup: Hero[] = [enemy(1, 'Anti-Mage')]) {
     fixture = TestBed.createComponent(CounterList);
     fixture.componentRef.setInput('counters', counters);
     fixture.componentRef.setInput('lineup', lineup);

@@ -1,7 +1,7 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { DraftCounter, Hero } from './hero.models';
+import { HeroScore, Hero } from './hero.models';
 
 /** Matchups with fewer games than this are flagged as less certain. */
 export const FEW_GAMES = 200;
@@ -13,7 +13,7 @@ export const FEW_GAMES = 200;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CounterList {
-  readonly counters = input.required<DraftCounter[]>();
+  readonly counters = input.required<HeroScore[]>();
   /** The enemy lineup, to label each counter's per-enemy breakdown. */
   readonly lineup = input.required<Hero[]>();
 

@@ -1,4 +1,4 @@
-// Mirror DotaDraft.Api's Dtos/HeroDto.cs, DraftCounterDto.cs and EnemyMatchupDto.cs
+// Mirror DotaDraft.Api's Dtos/HeroDto.cs, HeroScoreDto.cs, EnemyMatchupDto.cs and TeamMatchupDto.cs
 
 export interface Hero {
   id: number;
@@ -9,8 +9,11 @@ export interface Hero {
   imgUrl: string | null;
 }
 
-/** A counter-pick against a whole enemy lineup, ranked by totalAdvantage (percentage points). */
-export interface DraftCounter {
+/**
+ * Mirrors HeroScoreDto: a hero scored against a whole enemy lineup, either a counter suggestion or one of
+ * your own team's picks. Advantages are percentage points.
+ */
+export interface HeroScore {
   id: number;
   localizedName: string;
   primaryAttr: string;
@@ -33,5 +36,5 @@ export interface EnemyMatchup {
 /** Mirrors TeamMatchupDto: your team's heroes scored against the enemy lineup, in pick order. */
 export interface TeamMatchup {
   totalAdvantage: number;
-  heroes: DraftCounter[];
+  heroes: HeroScore[];
 }

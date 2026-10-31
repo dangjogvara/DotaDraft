@@ -19,7 +19,7 @@ import { HeroApiService } from './hero-api.service';
 import { PrimaryAttr, filterHeroes, groupByAttribute } from './hero-search';
 import { HeroFilters } from './hero-filters';
 import { HeroGrid } from './hero-grid';
-import { DraftCounter, Hero, TeamMatchup } from './hero.models';
+import { HeroScore, Hero, TeamMatchup } from './hero.models';
 import { LINEUP_PARAM, TEAM_PARAM, lineupFromParam, lineupToParam } from './lineup-param';
 import { LineupSlots, MAX_LINEUP } from './lineup-slots';
 import { Team } from './team';
@@ -66,7 +66,7 @@ export class HeroCountersPage {
   protected readonly allies = signal<Hero[]>([]);
   /** Which team a click on the grid adds to. */
   protected readonly addingTo = signal<Team>('enemy');
-  protected readonly counters = signal<LoadState<DraftCounter[]> | null>(null);
+  protected readonly counters = signal<LoadState<HeroScore[]> | null>(null);
   /** How your team does against the enemy; null until both teams have picks. */
   protected readonly teamMatchup = signal<LoadState<TeamMatchup> | null>(null);
 
@@ -191,11 +191,11 @@ export class HeroCountersPage {
     );
   }
 
-  private loadCounters({ enemies, allies }: Draft): Observable<LoadState<DraftCounter[]>> {
+  private loadCounters({ enemies, allies }: Draft): Observable<LoadState<HeroScore[]>> {
     return pollWhileEmpty(this.heroApi.getDraftCounters(ids(enemies), ids(allies))).pipe(
-      map((data): LoadState<DraftCounter[]> => ({ status: 'loaded', data })),
-      catchError(() => of<LoadState<DraftCounter[]>>({ status: 'error' })),
-      startWith<LoadState<DraftCounter[]>>({ status: 'loading' }),
+      map((data): LoadState<HeroScore[]> => ({ status: 'loaded', data })),
+      catchError(() => of<LoadState<HeroScore[]>>({ status: 'error' })),
+      startWith<LoadState<HeroScore[]>>({ status: 'loading' }),
     );
   }
 }

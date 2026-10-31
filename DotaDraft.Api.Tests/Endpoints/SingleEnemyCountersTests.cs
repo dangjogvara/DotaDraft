@@ -45,8 +45,8 @@ public class SingleEnemyCountersTests : IAsyncLifetime
         WinRate = games > 0 ? Math.Round((decimal)wins / games * 100m, 2) : 0m
     };
 
-    private async Task<List<DraftCounterDto>> GetCountersToHero1() =>
-        (await _factory.CreateClient().GetFromJsonAsync<List<DraftCounterDto>>("/api/counters?against=1"))!;
+    private async Task<List<HeroScoreDto>> GetCountersToHero1() =>
+        (await _factory.CreateClient().GetFromJsonAsync<List<HeroScoreDto>>("/api/counters?against=1"))!;
 
     [Fact]
     public async Task RanksBySampleAdjustedAdvantage_NotRawWinRate()
