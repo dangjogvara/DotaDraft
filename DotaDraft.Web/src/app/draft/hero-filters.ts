@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, model, viewChild } from '@angular/core';
 
-import { ATTRIBUTES, PrimaryAttr } from './hero-filter';
+import { ATTRIBUTES, PrimaryAttr } from './hero-search';
 
 @Component({
   selector: 'app-hero-filters',
