@@ -7,6 +7,7 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
 {
     public DbSet<Hero> Heroes => Set<Hero>();
     public DbSet<HeroMatchup> HeroMatchups => Set<HeroMatchup>();
+    public DbSet<SeedingState> SeedingStates => Set<SeedingState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -18,6 +19,10 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
 
         modelBuilder.Entity<HeroMatchup>()
             .HasKey(m => new { m.HeroId, m.AgainstHeroId });
+
+        modelBuilder.Entity<SeedingState>()
+            .Property(s => s.Id)
+            .ValueGeneratedNever();
 
         modelBuilder.Entity<HeroMatchup>()
             .HasOne(m => m.Hero)

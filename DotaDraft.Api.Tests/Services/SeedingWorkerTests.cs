@@ -53,7 +53,8 @@ public class SeedingWorkerTests : IAsyncLifetime
         return scope.ServiceProvider.GetRequiredService<AppDbContext>().HeroMatchups.Count();
     }
 
-    private void AddExistingData(bool withMatchup)
+    // Heroes, plus optionally an older matchup, and optionally a recorded seed that finished seededAgo ago
+    private void AddExistingData(bool withMatchup, TimeSpan? seededAgo = null)
     {
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -62,7 +63,15 @@ public class SeedingWorkerTests : IAsyncLifetime
             new Hero { Id = 2, Name = "npc_dota_hero_2", LocalizedName = "Hero 2", PrimaryAttr = "agi" });
         if (withMatchup)
             db.HeroMatchups.Add(new HeroMatchup { HeroId = 1, AgainstHeroId = 2, GamesPlayed = 1, Wins = 1, WinRate = 100m });
+        if (seededAgo is { } ago)
+            db.SeedingStates.Add(new SeedingState { MatchupsSeededAt = _time.GetUtcNow() - ago });
         db.SaveChanges();
+    }
+
+    private DateTimeOffset? RecordedSeed()
+    {
+        using var scope = _services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<AppDbContext>().SeedingStates.SingleOrDefault()?.MatchupsSeededAt;
     }
 
     // Waits in real time for the worker, which runs on another thread
@@ -101,9 +110,9 @@ public class SeedingWorkerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SkipsTheStartupSeed_WhenMatchupsExist_ThenSeedsAfterTheInterval()
+    public async Task SkipsTheStartupSeed_WhenTheLastSeedIsRecent_ThenSeedsAfterTheInterval()
     {
-        AddExistingData(withMatchup: true);
+        AddExistingData(withMatchup: true, seededAgo: TimeSpan.Zero);
         await _worker.StartAsync(CancellationToken.None);
 
         var elapsed = await AdvanceUntil(() => _client.HeroStatsRequests > 0);
@@ -124,6 +133,71 @@ public class SeedingWorkerTests : IAsyncLifetime
 
         await WaitUntil(() => MatchupCount() == 2);
         Assert.Equal(1, _client.HeroStatsRequests);
+    }
+
+    [Fact]
+    public async Task RecordsWhenTheSeedFinished()
+    {
+        await _worker.StartAsync(CancellationToken.None);
+
+        await WaitUntil(() => RecordedSeed() is not null);
+        Assert.Equal(_time.GetUtcNow(), RecordedSeed());
+    }
+
+    [Fact]
+    public async Task SeedsAtStartup_WhenTheLastSeedIsOlderThanTheInterval()
+    {
+        AddExistingData(withMatchup: true, seededAgo: TimeSpan.FromHours(25));
+
+        await _worker.StartAsync(CancellationToken.None);
+
+        await WaitUntil(() => _client.HeroStatsRequests == 1 && MatchupCount() == 2);
+    }
+
+    [Fact]
+    public async Task SeedsAtStartup_WhenMatchupsExistButNoSeedWasRecorded()
+    {
+        AddExistingData(withMatchup: true);
+
+        await _worker.StartAsync(CancellationToken.None);
+
+        await WaitUntil(() => _client.HeroStatsRequests == 1 && MatchupCount() == 2);
+    }
+
+    [Fact]
+    public async Task SeedsAtStartup_WhenTheMatchupTableIsEmpty_EvenAfterARecentSeed()
+    {
+        // As after truncating HeroMatchups to force a fresh seed
+        AddExistingData(withMatchup: false, seededAgo: TimeSpan.FromHours(1));
+
+        await _worker.StartAsync(CancellationToken.None);
+
+        await WaitUntil(() => MatchupCount() == 2);
+    }
+
+    [Fact]
+    public async Task CountsTheIntervalFromTheLastSeed_NotFromStartup()
+    {
+        // The app restarts 20 hours after the last seed, so the next one is due in 4 hours, not 24
+        AddExistingData(withMatchup: true, seededAgo: TimeSpan.FromHours(20));
+        await _worker.StartAsync(CancellationToken.None);
+
+        var elapsed = await AdvanceUntil(() => _client.HeroStatsRequests > 0);
+
+        Assert.Equal(TimeSpan.FromHours(4), elapsed);
+    }
+
+    [Fact]
+    public async Task RecordsNothing_AndTriesAgainAfterTheInterval_WhenTheSeedFails()
+    {
+        _client.FailLatestPublicMatchId = true;
+        await _worker.StartAsync(CancellationToken.None);
+        await WaitUntil(() => _client.HeroStatsRequests == 1);
+
+        var elapsed = await AdvanceUntil(() => _client.HeroStatsRequests == 2);
+
+        Assert.Null(RecordedSeed());
+        Assert.True(elapsed >= TimeSpan.FromHours(24), $"Tried again after {elapsed}");
     }
 
     [Fact]

@@ -86,8 +86,8 @@ Every URL that isn't `/api/...`, `/health` or a file gets the app's page, so sha
 ## Seeding
 
 The API fills the database itself, in the background:
-- **At startup,** if there are no matchups yet. On a fresh database the data appears about 1.5 minutes after the API starts, and restarts with data already there don't re-seed.
-- **Then every 24 hours** (`Seeding:IntervalHours`), so new patches and matches are picked up. The timer starts when the API starts, so frequent restarts delay the next scheduled seed.
+- **Every 24 hours** (`Seeding:IntervalHours`), counted from when the last successful seed finished, so new patches and matches are picked up. That time is stored in the database (`SeedingStates`), so restarts don't reset the clock: a restart seeds straight away only if the last seed is older than the interval.
+- **At startup** if there are no matchups, or no seed has been recorded. On a fresh database the data appears about 1.5 minutes after the API starts.
 
 Each run fetches heroes first, then matchups. Progress and errors go to the API's logs. A failed run is logged, and the next scheduled run tries again.
 
