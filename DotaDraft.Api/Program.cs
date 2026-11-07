@@ -67,12 +67,27 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// In production the built Angular app sits in wwwroot (dotnet publish puts it there), and the API hands it out:
+// its .js, .css and image files as they are. Locally there's no wwwroot, as ng serve hands out the app instead
+var servesAngularApp = Directory.Exists(app.Environment.WebRootPath);
+if (servesAngularApp)
+{
+    app.UseDefaultFiles(); // "/" means /index.html
+    app.UseStaticFiles();
+}
+
 app.UseCors(AngularClientCorsPolicy);
 
 app.RegisterHeroEndpoints();
 app.RegisterDraftEndpoints();
 
 app.MapHealthChecks("/health");
+
+// Every other URL gets the app's page, so links like /?against=1,14 open the app. Not /api/... URLs: an unknown
+// one stays a 404 ProblemDetails, and a wrong method a 405. Not file-like URLs either (nonfile): a missing
+// main.js is a 404, not the page
+if (servesAngularApp)
+    app.MapFallbackToFile("{*path:nonfile:regex(^(?!api/).*$)}", "index.html");
 
 app.Run();
 

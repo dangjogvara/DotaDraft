@@ -13,8 +13,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace DotaDraft.Api.Tests;
 
 // Runs the real app in memory, with an in-memory database and a fake OpenDota client.
-// With unreachableDatabase, every database call fails instead, as if Postgres were down
-public class DotaDraftApiFactory(string environment = "Development", bool unreachableDatabase = false)
+// With unreachableDatabase, every database call fails instead, as if Postgres were down.
+// With webRoot, the app serves that folder as its wwwroot, like a published build with the Angular app in it
+public class DotaDraftApiFactory(
+    string environment = "Development", bool unreachableDatabase = false, string? webRoot = null)
     : WebApplicationFactory<Program>
 {
     // Nothing listens on port 1, so the connection is refused straight away
@@ -28,6 +30,8 @@ public class DotaDraftApiFactory(string environment = "Development", bool unreac
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
+        if (webRoot is not null)
+            builder.UseWebRoot(webRoot);
 
         builder.ConfigureTestServices(services =>
         {
