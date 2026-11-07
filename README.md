@@ -72,6 +72,17 @@ Secrets never live in the repo. The database password goes in a gitignored `.env
 
    The draft is kept in the URL, e.g. `http://localhost:4200/?against=1,14&team=5` (the enemy lineup, then your own team's picks), so a refresh keeps your picks and you can share a draft as a link. Your team's picks are never suggested as counters.
 
+## Production build
+
+`dotnet publish` builds the Angular app too and puts it in the API's `wwwroot`, so one publish output holds the whole app. The API then serves the page, its files and the API from one address, with no CORS setup:
+
+```bash
+dotnet publish DotaDraft.Api -c Release -o publish      # also runs npm ci and ng build (needs Node)
+cd publish && ASPNETCORE_ENVIRONMENT=Production ConnectionStrings__DefaultConnection="..." dotnet DotaDraft.Api.dll
+```
+
+Every URL that isn't `/api/...`, `/health` or a file gets the app's page, so shared links like `/?against=1,14` work. Unknown `/api/...` URLs still return a 404 ProblemDetails. Locally there's no `wwwroot`, so `dotnet run` serves only the API, as before. Add `-p:SkipAngularBuild=true` to publish the API without the Angular app.
+
 ## Seeding
 
 The API fills the database itself, in the background:

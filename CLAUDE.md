@@ -8,6 +8,7 @@ Dota 2 counter-pick app: an ASP.NET Core Minimal API (.NET 10) with PostgreSQL v
 dotnet build
 dotnet test                                                    # no DB, Docker or secrets needed
 dotnet run --project DotaDraft.Api --launch-profile http       # http://localhost:8080
+dotnet publish DotaDraft.Api -c Release -o <dir>               # API + built Angular app in wwwroot (needs Node)
 dotnet tool restore                                            # once: installs the pinned dotnet-ef
 dotnet ef migrations add <Name> --project DotaDraft.Api
 dotnet ef database update --project DotaDraft.Api
