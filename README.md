@@ -83,6 +83,19 @@ cd publish && ASPNETCORE_ENVIRONMENT=Production ConnectionStrings__DefaultConnec
 
 Every URL that isn't `/api/...`, `/health` or a file gets the app's page, so shared links like `/?against=1,14` work. Unknown `/api/...` URLs still return a 404 ProblemDetails. Locally there's no `wwwroot`, so `dotnet run` serves only the API, as before. Add `-p:SkipAngularBuild=true` to publish the API without the Angular app.
 
+### Azure App Service
+
+The app runs behind App Service's front end, which handles HTTPS and forwards requests to the app as plain HTTP. The app trusts the front end's `X-Forwarded-Proto` and `X-Forwarded-For` headers, so it sees the client's real scheme and IP. Set up the App Service like this:
+
+| Where | Setting | Value |
+|---|---|---|
+| Environment variables → App settings | `ConnectionStrings__DefaultConnection` | `Host=<server>.postgres.database.azure.com;Database=dotadraft;Username=<user>;Password=<password>;SSL Mode=VerifyFull` |
+| Environment variables → App settings | `OpenDota__ApiKey` | your OpenDota key (optional) |
+| Configuration → General settings | HTTPS Only | On: the front end redirects HTTP to HTTPS (the app has no HTTPS port there, so it doesn't redirect itself) |
+| Monitoring → Health check | Path | `/health` |
+
+`ASPNETCORE_ENVIRONMENT` defaults to `Production`, so it doesn't need setting. Azure Database for PostgreSQL only accepts encrypted connections. `SSL Mode=VerifyFull` also checks the server's certificate and host name. Put the connection string in an app setting, not under App Service's *Connection strings*: a PostgreSQL entry there becomes a `POSTGRESQLCONNSTR_` variable, which .NET doesn't read. The health check needs nothing besides the database. It answers `Unhealthy` (503) when the database can't be reached, and App Service then replaces the instance after it fails for a while.
+
 ## Seeding
 
 The API fills the database itself, in the background:
@@ -154,7 +167,7 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 
 | Setting | Default | Description |
 |---|---|---|
-| `ConnectionStrings:DefaultConnection` | none (required) | PostgreSQL connection string |
+| `ConnectionStrings:DefaultConnection` | none (required) | PostgreSQL connection string (user-secrets locally; see [Azure App Service](#azure-app-service) for production) |
 | `OpenDota:ApiKey` | none | Optional OpenDota API key, sent as a bearer token |
 | `OpenDota:MatchupRequestDelayMs` | `1100` | Delay between matchup requests (one per window) |
 | `OpenDota:MaxRetryAttempts` | `3` | Retries after a transient failure (429, 5xx, network) |
