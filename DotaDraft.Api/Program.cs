@@ -4,6 +4,7 @@ using DotaDraft.Api.Data;
 using DotaDraft.Api.Endpoints;
 using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -22,11 +23,13 @@ builder.Services.AddProblemDetails();
 // Validates endpoint parameters with data annotations (e.g. [Range]) and returns a 400 ValidationProblem
 builder.Services.AddValidation();
 
-// The connection string lives in user-secrets locally (see .env.example), so fail clearly if it's missing
+// The connection string lives in user-secrets locally (see .env.example) and in the ConnectionStrings__DefaultConnection
+// app setting on App Service, so fail clearly if it's missing
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException(
-            "ConnectionStrings:DefaultConnection is not configured. Set it with dotnet user-secrets.")));
+            "ConnectionStrings:DefaultConnection is not configured. Set it with dotnet user-secrets locally, " +
+            "or as the ConnectionStrings__DefaultConnection environment variable.")));
 
 builder.Services.AddDotaDraftOptions(builder.Configuration);
 
@@ -49,7 +52,20 @@ builder.Services.AddScoped<HeroIngestionService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<SeedingWorker>();
 
+// App Service's front end terminates HTTPS and forwards requests as plain HTTP, saying in X-Forwarded-Proto and
+// X-Forwarded-For what the client used. Believe those headers from any proxy: on App Service only the front end can
+// reach the app, and the defaults would only trust a proxy on localhost
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
+
+// First, so everything after it (the HTTPS redirect, request URLs, logging) sees the client's scheme and IP
+app.UseForwardedHeaders();
 
 // In Development the framework's developer exception page handles exceptions, adding their details;
 // elsewhere the handler returns a 500 ProblemDetails without them
