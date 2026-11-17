@@ -139,9 +139,19 @@ public class HeroIngestionService(
     }
 
     // Replaces the table's contents in one save: updates or adds every pair seen, and removes pairs that
-    // weren't, so no rows from an older seed linger. Returns the number of rows written
+    // weren't, so no rows from an older seed linger. Every hero's baseline win rate is set from the same totals
+    // in that save, so baselines and matchups always agree. Returns the number of matchup rows written
     private async Task<int> ReplaceMatchupsAsync(MatchupTotals totals, CancellationToken ct)
     {
+        var totalsByHero = totals
+            .GroupBy(t => t.Key.HeroId)
+            .ToDictionary(g => g.Key, g => (Wins: g.Sum(t => (long)t.Value.Wins), Games: g.Sum(t => (long)t.Value.Games)));
+        foreach (var hero in await db.Heroes.ToListAsync(ct))
+        {
+            var (wins, games) = totalsByHero.GetValueOrDefault(hero.Id);
+            hero.BaselineWinRate = CounterRanking.BaselineWinRate(wins, games);
+        }
+
         var existingMatchups = await db.HeroMatchups.ToDictionaryAsync(m => (m.HeroId, m.AgainstHeroId), ct);
         foreach (var ((heroId, againstHeroId), (games, wins)) in totals)
         {
@@ -157,10 +167,12 @@ public class HeroIngestionService(
         var stale = existingMatchups.Where(e => !totals.ContainsKey(e.Key)).Select(e => e.Value).ToList();
         db.HeroMatchups.RemoveRange(stale);
 
-        int saved;
+        // Counted before saving: the save also writes the heroes whose baseline changed
+        var saved = db.ChangeTracker.Entries<HeroMatchup>()
+            .Count(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
         try
         {
-            saved = await db.SaveChangesAsync(ct);
+            await db.SaveChangesAsync(ct);
         }
         finally
         {

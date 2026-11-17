@@ -89,7 +89,7 @@ docker exec dota_postgres psql -U postgres -d dotadraft -c 'TRUNCATE "HeroMatchu
 ```
 
 - **Matchups come from public ranked matches.** DotaDraft runs SQL through OpenDota's [`/explorer`](https://docs.opendota.com/#tag/explorer) endpoint over its `public_matches` table: ranked All Pick games, counting every hero against every hero on the other team. The explorer stops queries after about 15 seconds, so the seed walks back from the newest match in windows of `WindowSize` match IDs (default 15 × 200,000, roughly the last 1.5 days) and adds the windows together. That's about 16 requests and a median of roughly 1,900 games per matchup.
-- **A matchup seed replaces the whole table.** Pairs that no longer appear are removed. If fewer than half the windows can be fetched, nothing is written and the existing data is kept. If only some fail, the rest is saved and the failure is logged.
+- **A matchup seed replaces the whole table.** Pairs that no longer appear are removed. Each hero's baseline win rate (see [How counters are ranked](#how-counters-are-ranked)) is recalculated in the same save, so it always matches the matchups. If fewer than half the windows can be fetched, nothing is written and the existing data is kept. If only some fail, the rest is saved and the failure is logged.
 - **`/explorer` isn't a stable, documented API.** If OpenDota changes its schema, the queries fail with an `err` message in the logs, and seeding fails while the existing matchups are kept.
 - Requests are spaced about 1 second apart to stay under the free tier's 60 requests/minute, and rate-limit responses (429) are retried with backoff.
 
@@ -129,7 +129,7 @@ trust     = gamesPlayed ÷ (gamesPlayed + k)
 advantage = raw edge × trust
 ```
 
-- **`baselineWinRate`** is the hero's win rate across all its matchups. Subtracting it stops heroes that are simply strong from looking like counters to everyone.
+- **`baselineWinRate`** is the hero's win rate across all its matchups, stored on the hero by each matchup seed. Subtracting it stops heroes that are simply strong from looking like counters to everyone.
 - **`trust`** stops lucky small samples (say 5 wins in 6 games) from topping the list. With `k = 30`, a matchup with 30 games keeps half its raw edge, and one with 300 games keeps about 90%.
 - **`k`** is the `Counters:PriorGames` setting (default 30). Raise it to trust small samples less.
 

@@ -27,6 +27,9 @@ namespace DotaDraft.Api.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("integer");
 
+                    b.Property<double>("BaselineWinRate")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("ImgUrl")
                         .HasColumnType("text");
 

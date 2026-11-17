@@ -202,6 +202,62 @@ public class HeroIngestionServiceTests
         Assert.Equal(10, (await _db.HeroMatchups.AsNoTracking().SingleAsync()).GamesPlayed);
     }
 
+    private void SetBaseline(int heroId, double baselineWinRate)
+    {
+        _db.Heroes.Single(h => h.Id == heroId).BaselineWinRate = baselineWinRate;
+        _db.SaveChanges();
+        _db.ChangeTracker.Clear();
+    }
+
+    private async Task<Dictionary<int, double>> StoredBaselines() =>
+        await _db.Heroes.AsNoTracking().ToDictionaryAsync(h => h.Id, h => h.BaselineWinRate);
+
+    [Fact]
+    public async Task SeedMatchups_StoresEachHerosBaseline_FromAllItsPairsInAllWindows()
+    {
+        AddHeroes(1, 2, 3, 4);
+        SetBaseline(4, 0.7); // from an older seed; hero 4 has no games in this one
+        _client.LatestPublicMatchId = 1000;
+        _client.PublicMatchups[1000] = [Pair(1, 2, 100, 60), Pair(2, 1, 100, 40), Pair(1, 3, 50, 10)];
+        _client.PublicMatchups[900] = [Pair(1, 2, 50, 20), Pair(2, 3, 50, 35)];
+
+        await CreateService().SeedMatchupsAsync();
+
+        var baselines = await StoredBaselines();
+        Assert.Equal(90 / 200.0, baselines[1], precision: 10);   // 60 + 10 + 20 wins in 100 + 50 + 50 games
+        Assert.Equal(75 / 150.0, baselines[2], precision: 10);   // 40 + 35 wins in 100 + 50 games
+        Assert.Equal(Hero.DefaultBaselineWinRate, baselines[3]); // only ever an enemy, so no games of its own
+        Assert.Equal(Hero.DefaultBaselineWinRate, baselines[4]); // the old baseline doesn't linger
+    }
+
+    [Fact]
+    public async Task SeedMatchups_KeepsExistingBaselines_WhenMostWindowsFail()
+    {
+        AddHeroes(1, 2);
+        AddMatchup(1, 2, 10, 7);
+        SetBaseline(1, 0.7);
+        _client.LatestPublicMatchId = 1000;
+        _client.FailingWindows.UnionWith([1000, 900]);
+        _client.PublicMatchups[800] = [Pair(1, 2, 100, 20)];
+
+        await Assert.ThrowsAsync<OpenDotaException>(() => CreateService().SeedMatchupsAsync());
+
+        Assert.Equal(0.7, (await StoredBaselines())[1]);
+    }
+
+    [Fact]
+    public async Task SeedMatchups_CountsOnlyMatchupRows_NotHeroesWhoseBaselineChanged()
+    {
+        AddHeroes(1, 2);
+        _client.PublicMatchups[_client.LatestPublicMatchId] = [Pair(1, 2, 10, 8), Pair(2, 1, 10, 2)];
+
+        var saved = await CreateService(windowCount: 1).SeedMatchupsAsync();
+
+        // Two matchups added; both heroes' baselines changed too, but aren't counted
+        Assert.Equal(2, saved);
+        Assert.Equal([0.8, 0.2], (await StoredBaselines()).OrderBy(b => b.Key).Select(b => b.Value));
+    }
+
     [Fact]
     public async Task SeedMatchups_Throws_WhenLatestMatchCannotBeFound()
     {
