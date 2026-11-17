@@ -9,5 +9,14 @@ public class Hero
     public string[] Roles { get; set; } = [];
     public string? ImgUrl { get; set; }
 
+    /// <summary>The baseline for a hero without games: no evidence that it's stronger or weaker than average.</summary>
+    public const double DefaultBaselineWinRate = 0.5;
+
+    /// <summary>
+    /// The hero's win rate across all its matchups, as a fraction. Set by each matchup seed, in the same save as the
+    /// matchups, so the two always agree. <see cref="DefaultBaselineWinRate"/> while the hero has no games.
+    /// </summary>
+    public double BaselineWinRate { get; set; } = DefaultBaselineWinRate;
+
     public ICollection<HeroMatchup> Matchups { get; set; } = [];
 }

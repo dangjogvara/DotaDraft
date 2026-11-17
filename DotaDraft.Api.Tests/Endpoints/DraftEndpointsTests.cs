@@ -17,9 +17,12 @@ public class DraftEndpointsTests : IAsyncLifetime
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // The baselines a seed would store for the matchups below (all wins / all games); 50% without games
+        var baselines = new Dictionary<int, double> { [2] = 90 / 100.0, [3] = 170 / 300.0, [4] = 100 / 200.0, [5] = 180 / 300.0 };
         db.Heroes.AddRange(Enumerable.Range(1, 6).Select(id => new Hero
         {
-            Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str"
+            Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str",
+            BaselineWinRate = baselines.GetValueOrDefault(id, Hero.DefaultBaselineWinRate)
         }));
 
         // Enemy lineup in the tests: heroes 1 and 2

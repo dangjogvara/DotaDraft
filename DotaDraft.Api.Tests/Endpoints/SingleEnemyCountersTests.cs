@@ -16,9 +16,12 @@ public class SingleEnemyCountersTests : IAsyncLifetime
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // The baselines a seed would store for the matchups below (all wins / all games); 50% without games
+        var baselines = new Dictionary<int, double> { [2] = 52 / 100.0, [3] = 100 / 200.0, [4] = 120 / 200.0 };
         db.Heroes.AddRange(Enumerable.Range(1, 5).Select(id => new Hero
         {
-            Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str"
+            Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str",
+            BaselineWinRate = baselines.GetValueOrDefault(id, Hero.DefaultBaselineWinRate)
         }));
 
         // Counters for hero 1. Raw win rate would rank them 2, 3, 4:
