@@ -1,4 +1,4 @@
 export const environment = {
-  // Empty means same origin: the API is expected to serve or proxy the built app in production
+  // Empty means same origin: whatever hosts the built app is expected to serve the API at the same address
   apiBaseUrl: '',
 };
