@@ -44,57 +44,27 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         return new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes);
     }
 
-    // Each hero's edge against every enemy, summed, in the order given; see CounterRanking for the formula.
-    // Counter suggestions and your team's matchup both come from here, so their numbers always agree.
-    // An enemy without matchup data contributes 0: no evidence either way
+    // Loads what the scoring needs, then scores in CounterRanking
     private async Task<List<HeroScoreDto>> ScoreAsync(IReadOnlyList<Hero> heroes, IReadOnlyList<int> enemyIds, CancellationToken ct)
     {
         var heroIds = heroes.Select(h => h.Id).ToList();
         var matchups = await db.HeroMatchups
             .AsNoTracking()
-            .Where(m => enemyIds.Contains(m.AgainstHeroId) && heroIds.Contains(m.HeroId) && m.GamesPlayed > 0)
-            .Select(m => new { m.HeroId, m.AgainstHeroId, m.Wins, m.GamesPlayed, m.WinRate })
+            .Where(m => enemyIds.Contains(m.AgainstHeroId) && heroIds.Contains(m.HeroId))
             .ToListAsync(ct);
-        var byHero = matchups.ToLookup(m => m.HeroId);
 
         var baselines = await LoadBaselineWinRatesAsync(ct);
 
-        return heroes
-            .Select(hero =>
-            {
-                var baseline = baselines.GetValueOrDefault(hero.Id, 0.5);
-                var byEnemy = byHero[hero.Id].ToDictionary(m => m.AgainstHeroId);
-
-                var perEnemy = enemyIds
-                    .Select(enemyId => byEnemy.TryGetValue(enemyId, out var m)
-                        ? new EnemyMatchupDto(
-                            enemyId,
-                            ToPoints(CounterRanking.Advantage(m.Wins, m.GamesPlayed, baseline, _priorGames)),
-                            m.WinRate,
-                            m.GamesPlayed)
-                        : new EnemyMatchupDto(enemyId, 0m, null, 0))
-                    .ToList();
-
-                return new HeroScoreDto(
-                    hero.Id,
-                    hero.LocalizedName,
-                    hero.PrimaryAttr,
-                    hero.ImgUrl,
-                    perEnemy.Sum(e => e.Advantage),
-                    ToPoints(baseline),
-                    perEnemy);
-            })
-            .ToList();
+        return CounterRanking.Score(heroes, enemyIds, matchups, baselines, _priorGames);
     }
 
     // Each hero's overall win rate across all its matchups, as a fraction, so general strength
-    // isn't mistaken for countering. Heroes without games default to 0.5
+    // isn't mistaken for countering. Heroes without games get CounterRanking's default
     private Task<Dictionary<int, double>> LoadBaselineWinRatesAsync(CancellationToken ct) =>
         db.HeroMatchups
             .AsNoTracking()
             .GroupBy(m => m.HeroId)
             .Select(g => new { HeroId = g.Key, Wins = g.Sum(m => m.Wins), Games = g.Sum(m => m.GamesPlayed) })
-            .ToDictionaryAsync(b => b.HeroId, b => b.Games > 0 ? (double)b.Wins / b.Games : 0.5, ct);
-
-    private static decimal ToPoints(double fraction) => Math.Round((decimal)fraction * 100m, 2);
+            .Where(b => b.Games > 0)
+            .ToDictionaryAsync(b => b.HeroId, b => (double)b.Wins / b.Games, ct);
 }
