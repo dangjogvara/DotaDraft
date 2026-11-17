@@ -4,7 +4,6 @@ using DotaDraft.Api.Data;
 using DotaDraft.Api.Endpoints;
 using DotaDraft.Api.Integrations.OpenDota;
 using DotaDraft.Api.Services;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -23,8 +22,8 @@ builder.Services.AddProblemDetails();
 // Validates endpoint parameters with data annotations (e.g. [Range]) and returns a 400 ValidationProblem
 builder.Services.AddValidation();
 
-// The connection string lives in user-secrets locally (see .env.example) and in the ConnectionStrings__DefaultConnection
-// app setting on App Service, so fail clearly if it's missing
+// The connection string lives in user-secrets (see .env.example), or in the ConnectionStrings__DefaultConnection
+// environment variable, so fail clearly if it's missing
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException(
@@ -52,20 +51,7 @@ builder.Services.AddScoped<HeroIngestionService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<SeedingWorker>();
 
-// App Service's front end terminates HTTPS and forwards requests as plain HTTP, saying in X-Forwarded-Proto and
-// X-Forwarded-For what the client used. Believe those headers from any proxy: on App Service only the front end can
-// reach the app, and the defaults would only trust a proxy on localhost
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
-});
-
 var app = builder.Build();
-
-// First, so everything after it (the HTTPS redirect, request URLs, logging) sees the client's scheme and IP
-app.UseForwardedHeaders();
 
 // In Development the framework's developer exception page handles exceptions, adding their details;
 // elsewhere the handler returns a 500 ProblemDetails without them
@@ -83,27 +69,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// In production the built Angular app sits in wwwroot (dotnet publish puts it there), and the API hands it out:
-// its .js, .css and image files as they are. Locally there's no wwwroot, as ng serve hands out the app instead
-var servesAngularApp = Directory.Exists(app.Environment.WebRootPath);
-if (servesAngularApp)
-{
-    app.UseDefaultFiles(); // "/" means /index.html
-    app.UseStaticFiles();
-}
-
 app.UseCors(AngularClientCorsPolicy);
 
 app.RegisterHeroEndpoints();
 app.RegisterDraftEndpoints();
 
 app.MapHealthChecks("/health");
-
-// Every other URL gets the app's page, so links like /?against=1,14 open the app. Not /api/... URLs: an unknown
-// one stays a 404 ProblemDetails, and a wrong method a 405. Not file-like URLs either (nonfile): a missing
-// main.js is a 404, not the page
-if (servesAngularApp)
-    app.MapFallbackToFile("{*path:nonfile:regex(^(?!api/).*$)}", "index.html");
 
 app.Run();
 
