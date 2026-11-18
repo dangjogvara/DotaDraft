@@ -93,12 +93,9 @@
           }
 
           @if (enemies().length > 0) {
-            <h2 class="mb-3 text-lg font-semibold">
-              @if (enemies().length === 1) {
-                Counters to {{ enemies()[0].localizedName }}
-              } @else {
-                Counters to the enemy lineup
-              }
+            <h2 class="mb-3 text-lg font-semibold" data-testid="counters-heading">
+              {{ role() ? role() + ' counters' : 'Counters' }} to
+              {{ enemies().length === 1 ? enemies()[0].localizedName : 'the enemy lineup' }}
             </h2>
             @switch (counters()?.status) {
               @case ('loading') {
@@ -108,7 +105,11 @@
                 <p class="text-red-300">Could not load counters. Try changing the lineup.</p>
               }
               @case ('loaded') {
-                @if (counterList().length === 0) {
+                @if (counterList().length === 0 && role()) {
+                  <p class="text-slate-400" data-testid="counters-empty">
+                    No {{ role() }} heroes have matchup data against this lineup.
+                  </p>
+                } @else if (counterList().length === 0) {
                   <p class="text-slate-400" data-testid="counters-empty">
                     No matchup data for these heroes yet. If the API just started, it may still be loading data from
                     OpenDota. The counters appear here by themselves when it's done.
@@ -130,7 +131,13 @@
         </aside>
 
         <section class="min-w-0 lg:col-start-1" aria-label="Heroes">
-          <app-hero-filters [(query)]="query" [(attribute)]="attribute" />
+          <app-hero-filters
+            [(query)]="query"
+            [(attribute)]="attribute"
+            [roles]="roles()"
+            [role]="role()"
+            (roleChange)="setRole($event)"
+          />
 
           @for (group of heroGroups(); track group.attribute) {
             <h2 class="mt-4 mb-2 text-sm font-semibold tracking-wide text-slate-400 uppercase">

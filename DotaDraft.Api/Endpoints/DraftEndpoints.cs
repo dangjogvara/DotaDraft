@@ -32,11 +32,15 @@ public static class DraftEndpoints
     /// <summary>Best counter picks against an enemy lineup.</summary>
     /// <remarks>
     /// Ranked by each hero's advantage summed over the enemies, so heroes that counter several picks rank highest.
-    /// Enemy heroes and excluded heroes are never suggested.
+    /// Enemy heroes and excluded heroes are never suggested. With a role, only heroes with that role are, still up to
+    /// the limit.
     /// </remarks>
     /// <param name="against">1 to 5 distinct enemy hero IDs. Repeat the key for each hero: against=1, then against=14.</param>
     /// <param name="exclude">
     /// Up to 5 distinct hero IDs that can't be picked, such as your own team's picks. None may also be in against.
+    /// </param>
+    /// <param name="role">
+    /// Only suggest heroes with this role, such as Carry or Support (case-insensitive). Leave it out for any role.
     /// </param>
     /// <param name="limit">How many counters to return, 1 to 20.</param>
     internal static async Task<Results<Ok<IReadOnlyList<HeroScoreDto>>, ValidationProblem>> GetDraftCounters(
@@ -44,13 +48,14 @@ public static class DraftEndpoints
         int[] against,
         [Length(0, MaxHeroesPerTeam, ErrorMessage = ExcludeError), Distinct(ErrorMessage = "Excluded hero IDs must be distinct.")]
         int[]? exclude,
+        string? role,
         CounterService counters,
         [Range(1, MaxLimit)] int limit = 10,
         CancellationToken ct = default)
     {
         int[] excluded = exclude ?? [];  // exclude is optional: leaving it out excludes no one
 
-        var result = await counters.GetDraftCountersAsync(against, excluded, limit, ct);
+        var result = await counters.GetDraftCountersAsync(against, excluded, role, limit, ct);
         return result.IsValid ? TypedResults.Ok(result.Value) : TypedResults.ValidationProblem(result.Errors);
     }
 

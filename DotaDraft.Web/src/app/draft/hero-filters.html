@@ -33,4 +33,24 @@
       </button>
     }
   </div>
+
+  @if (roles().length > 0) {
+    <div class="flex w-full flex-wrap gap-1" role="group" aria-label="Filter by role">
+      @for (r of roles(); track r) {
+        <button
+          type="button"
+          class="rounded-md px-2 py-0.5 text-xs transition"
+          [class]="
+            role() === r
+              ? 'bg-sky-600 text-white hover:bg-sky-500'
+              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+          "
+          [attr.aria-pressed]="role() === r"
+          (click)="toggleRole(r)"
+        >
+          {{ r }}
+        </button>
+      }
+    </div>
+  }
 </div>

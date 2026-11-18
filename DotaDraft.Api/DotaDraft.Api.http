@@ -16,6 +16,10 @@ Accept: application/json
 GET {{HostAddress}}/api/counters?against=1&against=14&exclude=5
 Accept: application/json
 
+### Only supports: one role, case-insensitive (Carry, Support, Nuker, Disabler, ...)
+GET {{HostAddress}}/api/counters?against=1&against=14&role=Support
+Accept: application/json
+
 ### Your team (Meepo, Lion) against the enemy lineup: each hero's edge per enemy, plus the team's total
 GET {{HostAddress}}/api/team-matchup?team=82&team=26&against=1&against=14
 Accept: application/json

@@ -13,12 +13,12 @@ const heroesUrl = `${environment.apiBaseUrl}/api/heroes`;
 const draftCountersUrl = `${environment.apiBaseUrl}/api/counters`;
 const teamMatchupUrl = `${environment.apiBaseUrl}/api/team-matchup`;
 
-const hero = (id: number, localizedName: string, primaryAttr = 'agi'): Hero => ({
+const hero = (id: number, localizedName: string, primaryAttr = 'agi', roles: string[] = []): Hero => ({
   id,
   name: `npc_dota_hero_${id}`,
   localizedName,
   primaryAttr,
-  roles: [],
+  roles,
   imgUrl: `https://cdn.test/${id}.png`,
 });
 
@@ -456,6 +456,81 @@ describe('HeroCountersPage', () => {
       expect(slotNames('ally').slice(0, 2)).toEqual(['Axe', 'Empty']);
       countersRequest([1], [2]).flush([]);
       teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [] });
+    });
+  });
+
+  describe('filtering by role', () => {
+    const carry = hero(1, 'Anti-Mage', 'agi', ['Carry', 'Escape']);
+    const support = hero(5, 'Crystal Maiden', 'int', ['Support', 'Disabler']);
+    const initiator = hero(2, 'Axe', 'str', ['Initiator']);
+
+    function chooseRole(role: string) {
+      [...el().querySelectorAll<HTMLButtonElement>('[aria-label="Filter by role"] button')]
+        .find((b) => b.textContent?.trim() === role)!
+        .click();
+      render();
+    }
+
+    /** The pending counters request, asserting its role (null for none). */
+    function countersWithRole(role: string | null): TestRequest {
+      const req = http.expectOne((r) => r.url === draftCountersUrl);
+      expect(req.request.params.get('role')).toBe(role);
+      return req;
+    }
+
+    it("offers the heroes' roles and filters the grid", async () => {
+      await open();
+      loadHeroes([carry, support, initiator]);
+
+      expect(
+        [...el().querySelectorAll('[aria-label="Filter by role"] button')].map((b) => b.textContent?.trim()),
+      ).toEqual(['Carry', 'Disabler', 'Escape', 'Initiator', 'Support']);
+
+      chooseRole('Support');
+      expect(visibleHeroes()).toEqual(['Crystal Maiden']);
+
+      chooseRole('Support');
+      expect(visibleHeroes()).toEqual(['Axe', 'Anti-Mage', 'Crystal Maiden']);
+    });
+
+    it('asks for counters with the role, and again without it, without asking for the team matchup', async () => {
+      await open('/?against=2&team=1');
+      loadHeroes([carry, support, initiator]);
+      countersWithRole(null).flush([weaver]);
+      teamRequest([1], [2]).flush({ totalAdvantage: 0, heroes: [] });
+
+      chooseRole('Support');
+      countersWithRole('Support').flush([weaver]);
+      render();
+      expect(text('[data-testid="counters-heading"]')).toBe('Support counters to Axe');
+
+      chooseRole('Support');
+      countersWithRole(null).flush([weaver]);
+      render();
+      expect(text('[data-testid="counters-heading"]')).toBe('Counters to Axe');
+      http.expectNone((r) => r.url === teamMatchupUrl);
+    });
+
+    it('keeps the role when the lineup changes', async () => {
+      await open();
+      loadHeroes([carry, support, initiator]);
+      chooseRole('Support');
+
+      // The grid only shows supports now
+      pick('Crystal Maiden');
+      countersWithRole('Support').flush([]);
+      render();
+
+      expect(text('[data-testid="counters-empty"]')).toBe('No Support heroes have matchup data against this lineup.');
+    });
+
+    it("doesn't ask for counters without an enemy", async () => {
+      await open();
+      loadHeroes([carry, support, initiator]);
+
+      chooseRole('Support');
+
+      http.expectNone((r) => r.url === draftCountersUrl);
     });
   });
 

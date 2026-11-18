@@ -20,13 +20,24 @@ export interface HeroGroup {
 // and "natures" finds "Nature's Prophet"
 const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
-export function filterHeroes(heroes: Hero[], query: string, attribute: PrimaryAttr | null): Hero[] {
+export function filterHeroes(
+  heroes: Hero[],
+  query: string,
+  attribute: PrimaryAttr | null,
+  role: string | null = null,
+): Hero[] {
   const needle = normalize(query);
   return heroes.filter(
     (hero) =>
       (attribute === null || hero.primaryAttr === attribute) &&
+      (role === null || hero.roles.includes(role)) &&
       normalize(hero.localizedName).includes(needle),
   );
+}
+
+/** The roles the heroes have (Carry, Support, …), each once, in alphabetical order. */
+export function rolesOf(heroes: Hero[]): string[] {
+  return [...new Set(heroes.flatMap((hero) => hero.roles))].sort();
 }
 
 /** Groups heroes by primary attribute, keeping their order and dropping empty groups. */

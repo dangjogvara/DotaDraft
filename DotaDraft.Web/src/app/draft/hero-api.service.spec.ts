@@ -45,6 +45,12 @@ describe('HeroApiService', () => {
     http.expectOne(`${environment.apiBaseUrl}/api/counters?against=1&exclude=5&exclude=8&limit=10`).flush([]);
   });
 
+  it('adds the role when there is one', () => {
+    service.getDraftCounters([1], [5], 'Support').subscribe();
+
+    http.expectOne(`${environment.apiBaseUrl}/api/counters?against=1&exclude=5&role=Support&limit=10`).flush([]);
+  });
+
   it('gets the team matchup with repeated "team" and "against" keys', () => {
     service.getTeamMatchup([82, 26], [1, 14]).subscribe();
 

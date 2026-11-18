@@ -49,6 +49,8 @@ public class OpenApiDocumentTests : IAsyncLifetime
             SchemaRef(operation, "400", "application/problem+json"));
         Assert.Contains("Repeat the key for each hero",
             (string?)operation["parameters"]!.AsArray().Single(p => (string?)p!["name"] == "against")!["description"]);
+        Assert.Contains("such as Carry or Support",
+            (string?)operation["parameters"]!.AsArray().Single(p => (string?)p!["name"] == "role")!["description"]);
     }
 
     [Fact]
