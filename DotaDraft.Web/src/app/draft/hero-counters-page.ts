@@ -119,12 +119,25 @@ export class HeroCountersPage {
       });
   }
 
-  /** Adds a hero to the team being picked for, unless either team already has it or that team is full. */
-  protected addHero(hero: Hero): void {
-    if (this.enemyIds().has(hero.id) || this.allyIds().has(hero.id) || this.addingToFull()) return;
+  protected readonly alliesFull = computed(() => this.allies().length >= MAX_LINEUP);
 
-    if (this.addingTo() === 'enemy') this.setDraft({ enemies: [...this.enemies(), hero], allies: this.allies() });
-    else this.setDraft({ enemies: this.enemies(), allies: [...this.allies(), hero] });
+  /** Adds a hero from the grid to the team being picked for. */
+  protected addHero(hero: Hero): void {
+    this.addToTeam(this.addingTo(), hero);
+  }
+
+  /** Adds a suggested counter to your team, whichever team the grid is picking for. */
+  protected pickCounter(counter: HeroScore): void {
+    const hero = this.heroList().find((h) => h.id === counter.id);
+    if (hero) this.addToTeam('ally', hero);
+  }
+
+  // Adds a hero to a team, unless either team already has it or that team is full
+  private addToTeam(team: Team, hero: Hero): void {
+    const lineup = team === 'enemy' ? this.enemies() : this.allies();
+    if (this.enemyIds().has(hero.id) || this.allyIds().has(hero.id) || lineup.length >= MAX_LINEUP) return;
+
+    this.setTeam(team, [...lineup, hero]);
     this.switchTeamIfFull();
   }
 

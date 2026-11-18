@@ -106,4 +106,45 @@ describe('CounterList', () => {
     expect(rows[0]).toContain('First');
     expect(rows[1]).toContain('Second');
   });
+
+  describe('pick buttons', () => {
+    const pickButtons = () =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[data-testid="pick-counter"]')];
+
+    it("aren't shown unless the list is pickable", () => {
+      render([counter({})]);
+
+      expect(pickButtons()).toEqual([]);
+    });
+
+    it('emit the counter that was picked', () => {
+      fixture = TestBed.createComponent(CounterList);
+      fixture.componentRef.setInput('counters', [counter({}), counter({ id: 26, localizedName: 'Lion' })]);
+      fixture.componentRef.setInput('lineup', [enemy(1, 'Anti-Mage')]);
+      fixture.componentRef.setInput('pickable', true);
+      const picked: HeroScore[] = [];
+      fixture.componentInstance.picked.subscribe((c) => picked.push(c));
+      fixture.detectChanges();
+
+      expect(pickButtons().map((b) => b.getAttribute('aria-label'))).toEqual([
+        'Pick Weaver for your team',
+        'Pick Lion for your team',
+      ]);
+      pickButtons()[1].click();
+
+      expect(picked.map((c) => c.id)).toEqual([26]);
+    });
+
+    it('are disabled when picking is', () => {
+      fixture = TestBed.createComponent(CounterList);
+      fixture.componentRef.setInput('counters', [counter({})]);
+      fixture.componentRef.setInput('lineup', [enemy(1, 'Anti-Mage')]);
+      fixture.componentRef.setInput('pickable', true);
+      fixture.componentRef.setInput('pickDisabled', true);
+      fixture.detectChanges();
+
+      expect(pickButtons()[0].disabled).toBe(true);
+      expect(pickButtons()[0].title).toBe('Your team is full');
+    });
+  });
 });

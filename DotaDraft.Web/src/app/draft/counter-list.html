@@ -42,6 +42,19 @@
           <p class="text-[10px] text-slate-500" data-testid="advantage-label">
             {{ single ? advantageLabel(counter.totalAdvantage) : 'combined edge' }}
           </p>
+          @if (pickable()) {
+            <button
+              type="button"
+              class="mt-1 rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white transition enabled:hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+              data-testid="pick-counter"
+              [disabled]="pickDisabled()"
+              [attr.aria-label]="'Pick ' + counter.localizedName + ' for your team'"
+              [attr.title]="pickDisabled() ? 'Your team is full' : 'Add ' + counter.localizedName + ' to your team'"
+              (click)="picked.emit(counter)"
+            >
+              Pick
+            </button>
+          }
         </div>
       </div>
 

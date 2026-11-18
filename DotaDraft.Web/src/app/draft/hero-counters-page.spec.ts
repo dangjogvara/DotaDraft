@@ -459,6 +459,55 @@ describe('HeroCountersPage', () => {
     });
   });
 
+  describe('picking a counter', () => {
+    const weaverHero = hero(63, 'Weaver');
+    const pickButton = (name: string) =>
+      el().querySelector<HTMLButtonElement>(`[data-testid="counters-panel"] [aria-label="Pick ${name} for your team"]`);
+
+    it('adds it to your team, even while the grid picks enemies, and updates the URL', async () => {
+      await open();
+      loadHeroes([antiMage, axe, weaverHero]);
+      pick('Anti-Mage');
+      countersRequest([1]).flush([weaver]);
+      render();
+
+      pickButton('Weaver')!.click();
+      render();
+
+      expect(slotNames('ally')[0]).toBe('Weaver');
+      expect(badge('Weaver')).toBe('Ally');
+      countersRequest([1], [63]).flush([]);
+      teamRequest([63], [1]).flush({ totalAdvantage: 0, heroes: [] });
+      expect(await url()).toBe('/?against=1&team=63');
+    });
+
+    it("isn't offered for your team's own heroes in the matchup", async () => {
+      await open();
+      loadHeroes([antiMage, axe, weaverHero]);
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+      addPicksTo('My team');
+      pick('Weaver');
+      countersRequest([1], [63]).flush([]);
+      teamRequest([63], [1]).flush({ totalAdvantage: 12.4, heroes: [weaver] });
+      render();
+
+      expect(text('[data-testid="team-matchup"]')).toContain('Weaver');
+      expect(el().querySelector('[data-testid="team-matchup"] [data-testid="pick-counter"]')).toBeNull();
+    });
+
+    it('is disabled once your team is full', async () => {
+      const allies = [axe, hero(3, 'Bane', 'int'), hero(4, 'Bloodseeker'), hero(5, 'Crystal Maiden', 'int'), hero(6, 'Drow Ranger')];
+      await open('/?against=1&team=2,3,4,5,6');
+      loadHeroes([antiMage, ...allies, weaverHero]);
+      countersRequest([1], [2, 3, 4, 5, 6]).flush([weaver]);
+      teamRequest([2, 3, 4, 5, 6], [1]).flush({ totalAdvantage: 0, heroes: [] });
+      render();
+
+      expect(pickButton('Weaver')!.disabled).toBe(true);
+    });
+  });
+
   describe('switching teams when one is full', () => {
     const tenHeroes = Array.from({ length: 10 }, (_, i) => hero(i + 1, `Hero ${i + 1}`));
     const selectedTeam = () =>
