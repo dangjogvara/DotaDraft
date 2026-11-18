@@ -37,10 +37,17 @@ public class CounterServiceTests
         _db.SaveChanges();
     }
 
+    // The value of a result the test expects to be valid; fails with the errors otherwise
+    private static T ValueOf<T>(CheckedResult<T> result)
+    {
+        Assert.True(result.IsValid, string.Join("; ", result.Errors.Select(e => $"{e.Key}: {string.Join(" ", e.Value)}")));
+        return result.Value;
+    }
+
     [Fact]
     public async Task GetDraftCounters_ReturnsEmpty_ForHeroWithoutMatchups()
     {
-        var counters = await CreateService().GetDraftCountersAsync([1], [], 5, CancellationToken.None);
+        var counters = ValueOf(await CreateService().GetDraftCountersAsync([1], [], 5, CancellationToken.None));
 
         Assert.Empty(counters);
     }
@@ -51,60 +58,55 @@ public class CounterServiceTests
         // 6 of 10 against hero 1 and 4 of 10 against hero 4: a 50% baseline and a raw edge of 10 points
         AddMatchups((2, 1, 6, 10), (2, 4, 4, 10));
 
-        var unsmoothed = await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None);
-        var smoothed = await CreateService(priorGames: 10).GetDraftCountersAsync([1], [], 5, CancellationToken.None);
+        var unsmoothed = ValueOf(await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None));
+        var smoothed = ValueOf(await CreateService(priorGames: 10).GetDraftCountersAsync([1], [], 5, CancellationToken.None));
 
         Assert.Equal(10m, Assert.Single(unsmoothed).TotalAdvantage);
         Assert.Equal(5m, Assert.Single(smoothed).TotalAdvantage);
     }
 
     [Fact]
-    public async Task CheckDraft_ReturnsNoErrors_ForKnownHeroesInOneList()
+    public async Task GetDraftCounters_ReportsUnknownIds_InRequestOrder_UnderTheListTheyCameFrom()
     {
-        var errors = await CreateService().CheckDraftAsync([1, 2], [3, 4], CancellationToken.None);
+        var result = await CreateService().GetDraftCountersAsync([98, 1, 97], [2, 99], 5, CancellationToken.None);
 
-        Assert.Empty(errors);
+        Assert.False(result.IsValid);
+        Assert.Null(result.Value);
+        Assert.Equal(2, result.Errors.Count);
+        Assert.Equal(["Unknown hero IDs: 98, 97."], result.Errors["against"]);
+        Assert.Equal(["Unknown hero IDs: 99."], result.Errors["exclude"]);
     }
 
     [Fact]
-    public async Task CheckDraft_ReportsUnknownIds_InRequestOrder_UnderTheListTheyCameFrom()
-    {
-        var errors = await CreateService().CheckDraftAsync([98, 1, 97], [2, 99], CancellationToken.None);
-
-        Assert.Equal(2, errors.Count);
-        Assert.Equal(["Unknown hero IDs: 98, 97."], errors["against"]);
-        Assert.Equal(["Unknown hero IDs: 99."], errors["exclude"]);
-    }
-
-    [Fact]
-    public async Task CheckDraft_ReportsHeroesInBothLists_UnderExclude_WithoutCheckingTheRest()
+    public async Task GetDraftCounters_ReportsHeroesInBothLists_UnderExclude_WithoutCheckingTheRest()
     {
         // 99 is unknown, but a hero in both lists is reported on its own
-        var errors = await CreateService().CheckDraftAsync([1, 2, 99], [2, 1], CancellationToken.None);
+        var result = await CreateService().GetDraftCountersAsync([1, 2, 99], [2, 1], 5, CancellationToken.None);
 
-        var error = Assert.Single(errors);
+        var error = Assert.Single(result.Errors);
         Assert.Equal("exclude", error.Key);
         Assert.Equal(["Hero IDs can't be both enemies and excluded: 1, 2."], error.Value);
     }
 
     [Fact]
-    public async Task CheckTeamMatchup_ReportsHeroesInBothLists_UnderTeam()
+    public async Task GetTeamMatchup_ReportsHeroesInBothLists_UnderTeam()
     {
-        var errors = await CreateService().CheckTeamMatchupAsync([3, 1], [1], CancellationToken.None);
+        var result = await CreateService().GetTeamMatchupAsync([3, 1], [1], CancellationToken.None);
 
-        var error = Assert.Single(errors);
+        var error = Assert.Single(result.Errors);
         Assert.Equal("team", error.Key);
         Assert.Equal(["Hero IDs can't be on both teams: 1."], error.Value);
     }
 
     [Fact]
-    public async Task CheckTeamMatchup_ReportsUnknownIds_UnderTheListTheyCameFrom()
+    public async Task GetTeamMatchup_ReportsUnknownIds_UnderTheListTheyCameFrom_InsteadOfThrowing()
     {
-        var errors = await CreateService().CheckTeamMatchupAsync([3, 99], [98], CancellationToken.None);
+        var result = await CreateService().GetTeamMatchupAsync([3, 99], [98], CancellationToken.None);
 
-        Assert.Equal(2, errors.Count);
-        Assert.Equal(["Unknown hero IDs: 99."], errors["team"]);
-        Assert.Equal(["Unknown hero IDs: 98."], errors["against"]);
+        Assert.False(result.IsValid);
+        Assert.Equal(2, result.Errors.Count);
+        Assert.Equal(["Unknown hero IDs: 99."], result.Errors["team"]);
+        Assert.Equal(["Unknown hero IDs: 98."], result.Errors["against"]);
     }
 
     [Fact]
@@ -113,7 +115,7 @@ public class CounterServiceTests
         // Both have the same advantage over hero 1 with no smoothing; hero 3 has more games behind it
         AddMatchups((2, 1, 6, 10), (2, 4, 4, 10), (3, 1, 60, 100), (3, 4, 40, 100));
 
-        var counters = await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None);
+        var counters = ValueOf(await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None));
 
         Assert.Equal([3, 2], counters.Select(c => c.Id));
         Assert.Equal(counters[0].TotalAdvantage, counters[1].TotalAdvantage);
@@ -128,7 +130,7 @@ public class CounterServiceTests
             weak.BaselineWinRate = 0.42;
         AddMatchups((3, 1, 58, 100), (3, 2, 58, 100), (4, 1, 58, 100), (4, 2, 58, 100));
 
-        var matchup = await CreateService(priorGames: 0).GetTeamMatchupAsync([3, 4], [1, 2], CancellationToken.None);
+        var matchup = ValueOf(await CreateService(priorGames: 0).GetTeamMatchupAsync([3, 4], [1, 2], CancellationToken.None));
 
         Assert.Equal(0m, matchup.TotalAdvantage);
         Assert.All(matchup.Heroes, h => Assert.All(h.Matchups, m => Assert.Equal(0m, m.Advantage)));
@@ -141,7 +143,7 @@ public class CounterServiceTests
         _db.Heroes.Single(h => h.Id == 1).BaselineWinRate = 0.55;
         AddMatchups((2, 1, 55, 100));
 
-        var counter = Assert.Single(await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None));
+        var counter = Assert.Single(ValueOf(await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], 5, CancellationToken.None)));
 
         Assert.Equal(10m, counter.TotalAdvantage);
     }
