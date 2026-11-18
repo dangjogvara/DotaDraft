@@ -11,12 +11,21 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 {
     private readonly int _priorGames = options.Value.PriorGames;
 
-    /// <summary>The IDs that aren't known heroes, in the order given. Callers check this before the methods below.</summary>
-    public async Task<IReadOnlyList<int>> FindUnknownHeroIdsAsync(IReadOnlyList<int> heroIds, CancellationToken ct)
-    {
-        var known = await db.Heroes.Where(h => heroIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
-        return heroIds.Except(known).ToList();
-    }
+    /// <summary>
+    /// Problems with the hero IDs of a counters request, keyed by query parameter (against, exclude); empty when there
+    /// are none. Run before <see cref="GetDraftCountersAsync"/>.
+    /// </summary>
+    public Task<IReadOnlyDictionary<string, string[]>> CheckDraftAsync(
+        IReadOnlyList<int> enemyIds, IReadOnlyList<int> excludedIds, CancellationToken ct) =>
+        CheckHeroesAsync(enemyIds, excludedIds, otherName: "exclude", inBothError: "Hero IDs can't be both enemies and excluded", ct);
+
+    /// <summary>
+    /// Problems with the hero IDs of a team matchup request, keyed by query parameter (team, against); empty when
+    /// there are none. Run before <see cref="GetTeamMatchupAsync"/>, which expects every ID to be a known hero.
+    /// </summary>
+    public Task<IReadOnlyDictionary<string, string[]>> CheckTeamMatchupAsync(
+        IReadOnlyList<int> teamIds, IReadOnlyList<int> enemyIds, CancellationToken ct) =>
+        CheckHeroesAsync(enemyIds, teamIds, otherName: "team", inBothError: "Hero IDs can't be on both teams", ct);
 
     /// <summary>The best counter picks against the enemies, never suggesting enemies or excluded heroes.</summary>
     public async Task<IReadOnlyList<HeroScoreDto>> GetDraftCountersAsync(
@@ -42,6 +51,41 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         var heroes = await ScoreAsync(teamIds.Select(id => heroesById[id]).ToList(), enemyIds, ct);
 
         return new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes);
+    }
+
+    // Checks the enemy IDs together with one other list of hero IDs (excluded heroes, or your team):
+    // 1. No hero may be in both lists. Reported under the other list's name, and nothing else is checked.
+    // 2. Every ID must be a known hero. Each unknown ID is reported under the list it came from.
+    private async Task<IReadOnlyDictionary<string, string[]>> CheckHeroesAsync(
+        IReadOnlyList<int> enemyIds, IReadOnlyList<int> otherIds, string otherName, string inBothError, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        var inBoth = enemyIds.Intersect(otherIds).ToList();
+        if (inBoth.Count > 0)
+        {
+            errors[otherName] = [$"{inBothError}: {string.Join(", ", inBoth)}."];
+            return errors;
+        }
+
+        var unknownIds = await FindUnknownHeroIdsAsync([.. enemyIds, .. otherIds], ct);
+        AddUnknown(errors, "against", enemyIds, unknownIds);
+        AddUnknown(errors, otherName, otherIds, unknownIds);
+        return errors;
+    }
+
+    // The IDs that aren't known heroes
+    private async Task<HashSet<int>> FindUnknownHeroIdsAsync(IReadOnlyList<int> heroIds, CancellationToken ct)
+    {
+        var known = await db.Heroes.Where(h => heroIds.Contains(h.Id)).Select(h => h.Id).ToListAsync(ct);
+        return heroIds.Except(known).ToHashSet();
+    }
+
+    private static void AddUnknown(Dictionary<string, string[]> errors, string name, IReadOnlyList<int> ids, HashSet<int> unknownIds)
+    {
+        var unknown = ids.Where(unknownIds.Contains).ToList();
+        if (unknown.Count > 0)
+            errors[name] = [$"Unknown hero IDs: {string.Join(", ", unknown)}."];
     }
 
     // Loads the heroes' matchups against the enemies and the enemies' baselines, then scores in CounterRanking.
