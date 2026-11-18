@@ -27,8 +27,8 @@ public static class DraftEndpoints
 
     // ASP.NET fills each parameter from the query string; a repeated key becomes an array (against=1&against=14).
     // The attributes are checked by the framework's validation before the method runs; a missing required list
-    // arrives as an empty array and fails [Length]. The service then does the checks that need both lists or the
-    // database, and the handler maps its errors to a ValidationProblem.
+    // arrives as an empty array and fails [Length]. The service query does the checks that need both lists or the
+    // database itself, and the handler maps its errors to a ValidationProblem.
     /// <summary>Best counter picks against an enemy lineup.</summary>
     /// <remarks>
     /// Ranked by each hero's advantage summed over the enemies, so heroes that counter several picks rank highest.
@@ -50,12 +50,8 @@ public static class DraftEndpoints
     {
         int[] excluded = exclude ?? [];  // exclude is optional: leaving it out excludes no one
 
-        var errors = await counters.CheckDraftAsync(against, excluded, ct);
-        if (errors.Count > 0)
-            return TypedResults.ValidationProblem(errors);
-
-        var counterPicks = await counters.GetDraftCountersAsync(against, excluded, limit, ct);
-        return TypedResults.Ok(counterPicks);
+        var result = await counters.GetDraftCountersAsync(against, excluded, limit, ct);
+        return result.IsValid ? TypedResults.Ok(result.Value) : TypedResults.ValidationProblem(result.Errors);
     }
 
     /// <summary>How your team's heroes do against an enemy lineup.</summary>
@@ -73,11 +69,7 @@ public static class DraftEndpoints
         CounterService counters,
         CancellationToken ct = default)
     {
-        var errors = await counters.CheckTeamMatchupAsync(team, against, ct);
-        if (errors.Count > 0)
-            return TypedResults.ValidationProblem(errors);
-
-        var matchup = await counters.GetTeamMatchupAsync(team, against, ct);
-        return TypedResults.Ok(matchup);
+        var result = await counters.GetTeamMatchupAsync(team, against, ct);
+        return result.IsValid ? TypedResults.Ok(result.Value) : TypedResults.ValidationProblem(result.Errors);
     }
 }
