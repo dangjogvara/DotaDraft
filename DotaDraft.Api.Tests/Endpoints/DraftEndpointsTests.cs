@@ -18,7 +18,7 @@ public class DraftEndpointsTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // The baselines a seed would store for the matchups below (all wins / all games); 50% without games
-        var baselines = new Dictionary<int, double> { [2] = 90 / 100.0, [3] = 170 / 300.0, [4] = 100 / 200.0, [5] = 180 / 300.0 };
+        var baselines = new Dictionary<int, double> { [2] = 100 / 200.0, [3] = 170 / 300.0, [4] = 100 / 200.0, [5] = 180 / 300.0 };
         db.Heroes.AddRange(Enumerable.Range(1, 6).Select(id => new Hero
         {
             Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str",
@@ -29,12 +29,13 @@ public class DraftEndpointsTests : IAsyncLifetime
         // - hero 3: 70% against both enemies, 30% vs hero 6 (baseline 56.67%): counters both moderately
         // - hero 4: 75% against hero 1 only, no data vs hero 2 (baseline 50%): counters one strongly
         // - hero 5: 60% against everyone (baseline 60%): no real edge
-        // - hero 2 beats hero 1 90% of the time, but is an enemy, so must not be suggested
+        // - hero 2 beats hero 1 90% of the time, but is an enemy, so must not be suggested. It loses to hero 6, so its
+        //   baseline is 50% and, like hero 1, it doesn't move what the others are expected to win (see CounterRankingTests)
         db.HeroMatchups.AddRange(
             Matchup(3, 1, 70, 100), Matchup(3, 2, 70, 100), Matchup(3, 6, 30, 100),
             Matchup(4, 1, 75, 100), Matchup(4, 6, 25, 100),
             Matchup(5, 1, 60, 100), Matchup(5, 2, 60, 100), Matchup(5, 6, 60, 100),
-            Matchup(2, 1, 90, 100));
+            Matchup(2, 1, 90, 100), Matchup(2, 6, 10, 100));
         db.SaveChanges();
         return Task.CompletedTask;
     }

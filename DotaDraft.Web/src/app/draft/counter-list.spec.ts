@@ -46,7 +46,7 @@ describe('CounterList', () => {
 
     expect(row).toContain('Weaver');
     expect(row).toContain('+12.4');
-    expect(text('[data-testid="advantage-label"]')).toEqual(['better than usual']);
+    expect(text('[data-testid="advantage-label"]')).toEqual(['better than expected']);
     expect(text('[data-testid="matchup"]')).toEqual(['Wins 73.9% against Anti-Mage (1,841 games)']);
     expect(row).toContain('Usually wins 45.3%');
   });
@@ -62,7 +62,7 @@ describe('CounterList', () => {
     render([counter({ totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: null, gamesPlayed: 0 }] })]);
 
     expect(text('[data-testid="matchup"]')).toEqual(['No games against Anti-Mage yet']);
-    expect(text('[data-testid="advantage-label"]')).toEqual(['same as usual']);
+    expect(text('[data-testid="advantage-label"]')).toEqual(['as expected']);
   });
 
   it('shows a per-enemy breakdown for a lineup, flagging few games and missing data', () => {
@@ -97,7 +97,7 @@ describe('CounterList', () => {
 
     expect(row).toContain('-1.3');
     expect(row).not.toContain('+');
-    expect(text('[data-testid="advantage-label"]')).toEqual(['worse than usual']);
+    expect(text('[data-testid="advantage-label"]')).toEqual(['worse than expected']);
   });
 
   it('keeps the API order', () => {

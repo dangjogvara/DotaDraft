@@ -116,20 +116,24 @@ A counter to one enemy (`/api/counters?against=1`) looks like this (shortened):
 
 ```json
 {
-  "id": 63, "localizedName": "Weaver", "totalAdvantage": 12.4, "baselineWinRate": 45.34,
-  "matchups": [{ "enemyId": 1, "advantage": 12.4, "winRate": 73.91, "gamesPlayed": 23 }]
+  "id": 63, "localizedName": "Weaver", "totalAdvantage": 12.82, "baselineWinRate": 45.34,
+  "matchups": [{ "enemyId": 1, "advantage": 12.82, "winRate": 73.91, "gamesPlayed": 23 }]
 }
 ```
 
-Each entry in `matchups` has an `advantage`: how many percentage points better the counter hero does against that enemy than it does in general, scaled down when there are few games to go on:
+Each entry in `matchups` has an `advantage`: how many percentage points better the counter hero does against that enemy than both heroes' general strength predicts, scaled down when there are few games to go on:
 
 ```
-raw edge  = winRate − baselineWinRate
+expected  = baselineWinRate − (enemy's baselineWinRate − 50)
+raw edge  = winRate − expected
 trust     = gamesPlayed ÷ (gamesPlayed + k)
 advantage = raw edge × trust
 ```
 
-- **`baselineWinRate`** is the hero's win rate across all its matchups, stored on the hero by each matchup seed. Subtracting it stops heroes that are simply strong from looking like counters to everyone.
+- **`baselineWinRate`** is a hero's win rate across all its matchups, stored on the hero by each matchup seed. Subtracting the counter hero's own baseline stops heroes that are simply strong from looking like counters to everyone.
+- **The enemy's baseline** moves what to expect the other way. Wraith King wins about 55% of its games, so a 50% hero is expected to win only about 45% against it; with 45% that hero is neither countering nor countered. Without this, a weak enemy would make almost every hero look like its counter, and a strong one would make none. For example, Wraith King (55.34%) is expected to win 55.34 + 7.37 = 62.71% against Shadow Demon (42.63%).
+- **In the example above**, Anti-Mage's baseline is 50.98%, so Weaver is expected to win 45.34 − 0.98 = 44.36% against it. The raw edge is 73.91 − 44.36 = 29.55 points, and with 23 games and `k = 30` it keeps 23 ÷ 53 of that: 12.82.
+- The formula is additive rather than log5 (log-odds): at real baselines, about 42–56%, the two differ by at most about 0.2 points, and this one can be checked by hand.
 - **`trust`** stops lucky small samples (say 5 wins in 6 games) from topping the list. With `k = 30`, a matchup with 30 games keeps half its raw edge, and one with 300 games keeps about 90%.
 - **`k`** is the `Counters:PriorGames` setting (default 30). Raise it to trust small samples less.
 

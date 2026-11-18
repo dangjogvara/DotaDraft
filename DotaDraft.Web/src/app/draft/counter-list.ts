@@ -30,8 +30,8 @@ export class CounterList {
   }
 
   protected advantageLabel(advantage: number): string {
-    if (advantage > 0) return 'better than usual';
-    if (advantage < 0) return 'worse than usual';
-    return 'same as usual';
+    if (advantage > 0) return 'better than expected';
+    if (advantage < 0) return 'worse than expected';
+    return 'as expected';
   }
 }

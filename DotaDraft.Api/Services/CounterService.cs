@@ -44,16 +44,20 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         return new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes);
     }
 
-    // Loads the heroes' matchups against the enemies, then scores in CounterRanking. The heroes carry their
-    // baseline win rates, which the matchup seed stores
+    // Loads the heroes' matchups against the enemies and the enemies' baselines, then scores in CounterRanking.
+    // Baseline win rates are stored on the heroes by the matchup seed
     private async Task<List<HeroScoreDto>> ScoreAsync(IReadOnlyList<Hero> heroes, IReadOnlyList<int> enemyIds, CancellationToken ct)
     {
+        var enemyBaselines = await db.Heroes
+            .AsNoTracking()
+            .Where(h => enemyIds.Contains(h.Id))
+            .ToDictionaryAsync(h => h.Id, h => h.BaselineWinRate, ct);
         var heroIds = heroes.Select(h => h.Id).ToList();
         var matchups = await db.HeroMatchups
             .AsNoTracking()
             .Where(m => enemyIds.Contains(m.AgainstHeroId) && heroIds.Contains(m.HeroId))
             .ToListAsync(ct);
 
-        return CounterRanking.Score(heroes, enemyIds, matchups, _priorGames);
+        return CounterRanking.Score(heroes, enemyIds, enemyBaselines, matchups, _priorGames);
     }
 }
