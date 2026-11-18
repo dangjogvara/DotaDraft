@@ -114,7 +114,13 @@
                     OpenDota. The counters appear here by themselves when it's done.
                   </p>
                 } @else {
-                  <app-counter-list [counters]="counterList()" [lineup]="enemies()" />
+                  <app-counter-list
+                    [counters]="counterList()"
+                    [lineup]="enemies()"
+                    pickable
+                    [pickDisabled]="alliesFull()"
+                    (picked)="pickCounter($event)"
+                  />
                 }
               }
             }

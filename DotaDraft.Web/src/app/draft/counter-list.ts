@@ -1,5 +1,12 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  booleanAttribute,
+  computed,
+  input,
+  output,
+} from '@angular/core';
 
 import { HeroScore, Hero } from './hero.models';
 
@@ -16,6 +23,11 @@ export class CounterList {
   readonly counters = input.required<HeroScore[]>();
   /** The enemy lineup, to label each counter's per-enemy breakdown. */
   readonly lineup = input.required<Hero[]>();
+  /** Shows a button on each counter to pick it for your team. Off for lists of heroes that are already picked. */
+  readonly pickable = input(false, { transform: booleanAttribute });
+  /** Disables the pick buttons, e.g. when your team is full. */
+  readonly pickDisabled = input(false);
+  readonly picked = output<HeroScore>();
 
   protected readonly enemies = computed(
     () => new Map(this.lineup().map((hero) => [hero.id, hero])),
