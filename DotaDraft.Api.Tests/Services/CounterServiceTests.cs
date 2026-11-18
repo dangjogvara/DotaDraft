@@ -59,11 +59,52 @@ public class CounterServiceTests
     }
 
     [Fact]
-    public async Task FindUnknownHeroIds_ReportsEveryUnknownId_InRequestOrder()
+    public async Task CheckDraft_ReturnsNoErrors_ForKnownHeroesInOneList()
     {
-        var unknown = await CreateService().FindUnknownHeroIdsAsync([98, 1, 99], CancellationToken.None);
+        var errors = await CreateService().CheckDraftAsync([1, 2], [3, 4], CancellationToken.None);
 
-        Assert.Equal([98, 99], unknown);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task CheckDraft_ReportsUnknownIds_InRequestOrder_UnderTheListTheyCameFrom()
+    {
+        var errors = await CreateService().CheckDraftAsync([98, 1, 97], [2, 99], CancellationToken.None);
+
+        Assert.Equal(2, errors.Count);
+        Assert.Equal(["Unknown hero IDs: 98, 97."], errors["against"]);
+        Assert.Equal(["Unknown hero IDs: 99."], errors["exclude"]);
+    }
+
+    [Fact]
+    public async Task CheckDraft_ReportsHeroesInBothLists_UnderExclude_WithoutCheckingTheRest()
+    {
+        // 99 is unknown, but a hero in both lists is reported on its own
+        var errors = await CreateService().CheckDraftAsync([1, 2, 99], [2, 1], CancellationToken.None);
+
+        var error = Assert.Single(errors);
+        Assert.Equal("exclude", error.Key);
+        Assert.Equal(["Hero IDs can't be both enemies and excluded: 1, 2."], error.Value);
+    }
+
+    [Fact]
+    public async Task CheckTeamMatchup_ReportsHeroesInBothLists_UnderTeam()
+    {
+        var errors = await CreateService().CheckTeamMatchupAsync([3, 1], [1], CancellationToken.None);
+
+        var error = Assert.Single(errors);
+        Assert.Equal("team", error.Key);
+        Assert.Equal(["Hero IDs can't be on both teams: 1."], error.Value);
+    }
+
+    [Fact]
+    public async Task CheckTeamMatchup_ReportsUnknownIds_UnderTheListTheyCameFrom()
+    {
+        var errors = await CreateService().CheckTeamMatchupAsync([3, 99], [98], CancellationToken.None);
+
+        Assert.Equal(2, errors.Count);
+        Assert.Equal(["Unknown hero IDs: 99."], errors["team"]);
+        Assert.Equal(["Unknown hero IDs: 98."], errors["against"]);
     }
 
     [Fact]

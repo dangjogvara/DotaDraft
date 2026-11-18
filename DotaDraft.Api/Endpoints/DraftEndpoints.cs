@@ -27,8 +27,8 @@ public static class DraftEndpoints
 
     // ASP.NET fills each parameter from the query string; a repeated key becomes an array (against=1&against=14).
     // The attributes are checked by the framework's validation before the method runs; a missing required list
-    // arrives as an empty array and fails [Length]. CheckHeroesAsync then does the checks that need both lists
-    // or the database.
+    // arrives as an empty array and fails [Length]. The service then does the checks that need both lists or the
+    // database, and the handler maps its errors to a ValidationProblem.
     /// <summary>Best counter picks against an enemy lineup.</summary>
     /// <remarks>
     /// Ranked by each hero's advantage summed over the enemies, so heroes that counter several picks rank highest.
@@ -50,10 +50,9 @@ public static class DraftEndpoints
     {
         int[] excluded = exclude ?? [];  // exclude is optional: leaving it out excludes no one
 
-        var problem = await CheckHeroesAsync(counters, against, excluded,
-            otherName: "exclude", inBothError: "Hero IDs can't be both enemies and excluded", ct);
-        if (problem is not null)
-            return problem;
+        var errors = await counters.CheckDraftAsync(against, excluded, ct);
+        if (errors.Count > 0)
+            return TypedResults.ValidationProblem(errors);
 
         var counterPicks = await counters.GetDraftCountersAsync(against, excluded, limit, ct);
         return TypedResults.Ok(counterPicks);
@@ -74,43 +73,11 @@ public static class DraftEndpoints
         CounterService counters,
         CancellationToken ct = default)
     {
-        var problem = await CheckHeroesAsync(counters, against, team,
-            otherName: "team", inBothError: "Hero IDs can't be on both teams", ct);
-        if (problem is not null)
-            return problem;
+        var errors = await counters.CheckTeamMatchupAsync(team, against, ct);
+        if (errors.Count > 0)
+            return TypedResults.ValidationProblem(errors);
 
         var matchup = await counters.GetTeamMatchupAsync(team, against, ct);
         return TypedResults.Ok(matchup);
     }
-
-    // Checks the enemy IDs together with one other list of hero IDs (excluded heroes, or your team).
-    // Returns a 400 problem, or null when both lists are fine:
-    // 1. No hero may be in both lists. Reported under the other list's name.
-    // 2. Every ID must be a known hero. Each unknown ID is reported under the list it came from.
-    private static async Task<ValidationProblem?> CheckHeroesAsync(
-        CounterService counters, int[] against, int[] other, string otherName, string inBothError, CancellationToken ct)
-    {
-        var inBoth = against.Intersect(other).ToList();
-        if (inBoth.Count > 0)
-            return Problem(otherName, $"{inBothError}: {string.Join(", ", inBoth)}.");
-
-        var unknownIds = await counters.FindUnknownHeroIdsAsync([.. against, .. other], ct);
-        if (unknownIds.Count == 0)
-            return null;
-
-        var errors = new Dictionary<string, string[]>();
-        AddUnknown(errors, "against", against, unknownIds);
-        AddUnknown(errors, otherName, other, unknownIds);
-        return TypedResults.ValidationProblem(errors);
-    }
-
-    private static void AddUnknown(Dictionary<string, string[]> errors, string name, int[] ids, IReadOnlyList<int> unknownIds)
-    {
-        var unknown = ids.Where(unknownIds.Contains).ToList();
-        if (unknown.Count > 0)
-            errors[name] = [$"Unknown hero IDs: {string.Join(", ", unknown)}."];
-    }
-
-    private static ValidationProblem Problem(string name, string error) =>
-        TypedResults.ValidationProblem(new Dictionary<string, string[]> { [name] = [error] });
 }
