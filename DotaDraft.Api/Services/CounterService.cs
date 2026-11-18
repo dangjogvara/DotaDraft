@@ -14,10 +14,14 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 
     /// <summary>
     /// The best counter picks against the enemies, never suggesting enemies or excluded heroes. Errors are keyed by
-    /// query parameter (against, exclude).
+    /// query parameter (against, exclude, role).
     /// </summary>
+    /// <param name="role">
+    /// Only suggest heroes with this role, e.g. Support; null or blank for any. Matched case-insensitively against
+    /// the roles the heroes have.
+    /// </param>
     public async Task<CheckedResult<IReadOnlyList<HeroScoreDto>>> GetDraftCountersAsync(
-        IReadOnlyList<int> enemyIds, IReadOnlyList<int> excludedIds, int limit, CancellationToken ct)
+        IReadOnlyList<int> enemyIds, IReadOnlyList<int> excludedIds, string? role, int limit, CancellationToken ct)
     {
         // Any hero can be a counter, so load them all (about 125): one load serves the checks, the candidates and
         // the enemies' baselines
@@ -25,11 +29,15 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 
         var errors = CheckHeroes(enemyIds, excludedIds, heroesById,
             otherName: "exclude", inBothError: "Hero IDs can't be both enemies and excluded");
+        var knownRole = FindRole(role, heroesById.Values, errors);
         if (errors.Count > 0)
             return CheckedResult<IReadOnlyList<HeroScoreDto>>.Invalid(errors);
 
+        // The role filter comes before ranking and the limit, so a role still gets up to `limit` suggestions
         var unavailableIds = enemyIds.Concat(excludedIds).ToHashSet();
-        var candidates = heroesById.Values.Where(h => !unavailableIds.Contains(h.Id)).ToList();
+        var candidates = heroesById.Values
+            .Where(h => !unavailableIds.Contains(h.Id) && (knownRole is null || h.Roles.Contains(knownRole)))
+            .ToList();
 
         // Heroes without games against any of the enemies have nothing to rank them by, so they're left out
         var counters = (await ScoreAsync(candidates, enemyIds, heroesById, ct))
@@ -82,6 +90,20 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         AddUnknown(errors, "against", enemyIds, heroesById);
         AddUnknown(errors, otherName, otherIds, heroesById);
         return errors;
+    }
+
+    // The role as the heroes spell it (e.g. "support" -> "Support"), or null for no role filter. A role no hero has
+    // is reported under "role", listing the known ones
+    private static string? FindRole(string? role, IEnumerable<Hero> heroes, Dictionary<string, string[]> errors)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+            return null;
+
+        var knownRoles = heroes.SelectMany(h => h.Roles).Distinct().Order(StringComparer.Ordinal).ToList();
+        var match = knownRoles.FirstOrDefault(r => string.Equals(r, role.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+            errors["role"] = [$"Unknown role: {role}. Known roles: {string.Join(", ", knownRoles)}."];
+        return match;
     }
 
     private static void AddUnknown(

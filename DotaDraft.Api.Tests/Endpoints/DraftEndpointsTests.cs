@@ -22,6 +22,7 @@ public class DraftEndpointsTests : IAsyncLifetime
         db.Heroes.AddRange(Enumerable.Range(1, 6).Select(id => new Hero
         {
             Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str",
+            Roles = id == 4 ? ["Carry"] : ["Support"],
             BaselineWinRate = baselines.GetValueOrDefault(id, Hero.DefaultBaselineWinRate)
         }));
 
@@ -148,6 +149,25 @@ public class DraftEndpointsTests : IAsyncLifetime
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.Contains(expectedError, Assert.Single(problem!.Errors["exclude"]));
         Assert.False(problem.Errors.ContainsKey("against"));
+    }
+
+    [Fact]
+    public async Task FiltersByRole()
+    {
+        // Hero 4 (the carry) would rank second
+        var counters = await GetCounters("?against=1&against=2&role=support");
+
+        Assert.Equal([3, 5], counters.Select(c => c.Id));
+    }
+
+    [Fact]
+    public async Task RejectsAnUnknownRole()
+    {
+        var response = await Get("?against=1&role=Jungler");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Equal("Unknown role: Jungler. Known roles: Carry, Support.", Assert.Single(problem!.Errors["role"]));
     }
 
     [Fact]

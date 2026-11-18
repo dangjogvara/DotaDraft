@@ -77,4 +77,36 @@ describe('HeroFilters', () => {
     expect(button('Agility').classList).toContain('hover:bg-slate-700');
     expect(button('Agility').classList).not.toContain('bg-sky-600');
   });
+
+  describe('roles', () => {
+    const roleButtons = () =>
+      [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll(
+          '[aria-label="Filter by role"] button',
+        ),
+      ].map((b) => b.textContent?.trim());
+
+    it('shows no role buttons without roles', () => {
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[aria-label="Filter by role"]'),
+      ).toBeNull();
+    });
+
+    it('shows one button per role and toggles a role on and off', () => {
+      fixture.componentRef.setInput('roles', ['Carry', 'Support']);
+      fixture.detectChanges();
+      expect(roleButtons()).toEqual(['Carry', 'Support']);
+
+      button('Support').click();
+      fixture.detectChanges();
+      expect(filters.role()).toBe('Support');
+      expect(button('Support').getAttribute('aria-pressed')).toBe('true');
+
+      button('Carry').click();
+      expect(filters.role()).toBe('Carry');
+
+      button('Carry').click();
+      expect(filters.role()).toBeNull();
+    });
+  });
 });

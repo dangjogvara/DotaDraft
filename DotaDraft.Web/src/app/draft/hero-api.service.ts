@@ -19,14 +19,21 @@ export class HeroApiService {
 
   /**
    * Counter-picks against a lineup of 1-5 enemies, ranked by summed advantage, never suggesting the
-   * up to 5 excluded heroes (your own team's picks). The API limits limit to 1-20.
+   * up to 5 excluded heroes (your own team's picks), and with a role only heroes that have it. The
+   * API limits limit to 1-20.
    */
-  getDraftCounters(enemyIds: number[], excludeIds: number[] = [], limit = 10): Observable<HeroScore[]> {
+  getDraftCounters(
+    enemyIds: number[],
+    excludeIds: number[] = [],
+    role: string | null = null,
+    limit = 10,
+  ): Observable<HeroScore[]> {
     // Repeated keys, as the API binds them to an array: ?against=1&against=14&exclude=5
     const params = new HttpParams({
       fromObject: {
         against: enemyIds.map(String),
         ...(excludeIds.length > 0 && { exclude: excludeIds.map(String) }),
+        ...(role !== null && { role }),
         limit,
       },
     });
