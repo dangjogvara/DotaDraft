@@ -100,6 +100,55 @@ describe('CounterList', () => {
     expect(text('[data-testid="advantage-label"]')).toEqual(['worse than expected']);
   });
 
+  it('colours positive advantages emerald, negative red and zero neutral', () => {
+    render(
+      [
+        counter({
+          id: 1,
+          totalAdvantage: 5.5,
+          matchups: [
+            { enemyId: 1, advantage: 8, winRate: 60, gamesPlayed: 500 },
+            { enemyId: 2, advantage: -2.5, winRate: 45, gamesPlayed: 500 },
+            { enemyId: 3, advantage: 0, winRate: 50, gamesPlayed: 500 },
+          ],
+        }),
+        counter({ id: 2, totalAdvantage: -3.2, matchups: [{ enemyId: 1, advantage: -3.2, winRate: 46, gamesPlayed: 500 }] }),
+        counter({ id: 3, totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: 50, gamesPlayed: 500 }] }),
+      ],
+      [enemy(1, 'Anti-Mage'), enemy(2, 'Axe'), enemy(3, 'Lion')],
+    );
+
+    const root = fixture.nativeElement as HTMLElement;
+    const totals = [...root.querySelectorAll('[data-testid="counter"] [data-testid="advantage-value"]')];
+    expect(totals[0].classList).toContain('text-emerald-400');
+    expect(totals[1].classList).toContain('text-red-400');
+    expect(totals[2].classList).toContain('text-slate-400');
+
+    const chips = [...root.querySelectorAll('[data-testid="breakdown"] [data-testid="breakdown-advantage"]')];
+    expect(chips[0].classList).toContain('text-emerald-400');
+    expect(chips[1].classList).toContain('text-red-400');
+    expect(chips[2].classList).toContain('text-slate-400');
+  });
+
+  it('words single-enemy tooltips for positive, negative, zero and missing advantages', () => {
+    render([
+      counter({ id: 1, localizedName: 'Weaver', totalAdvantage: 12.4, matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.9, gamesPlayed: 500 }] }),
+      counter({ id: 2, localizedName: 'Axe', totalAdvantage: -4.25, matchups: [{ enemyId: 1, advantage: -4.25, winRate: 45.7, gamesPlayed: 500 }] }),
+      counter({ id: 3, localizedName: 'Lion', totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: 50, gamesPlayed: 500 }] }),
+      counter({ id: 4, localizedName: 'Bane', totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: null, gamesPlayed: 0 }] }),
+    ]);
+
+    const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="advantage"]')].map((el) =>
+      el.getAttribute('title'),
+    );
+    expect(titles).toEqual([
+      "Weaver wins 12.4 percentage points more often against Anti-Mage than both heroes' usual win rates predict, adjusted for how many games there are",
+      "Axe wins 4.3 percentage points less often against Anti-Mage than both heroes' usual win rates predict, adjusted for how many games there are",
+      "Lion wins as often against Anti-Mage as both heroes' usual win rates predict, adjusted for how many games there are",
+      'No matchup data against Anti-Mage',
+    ]);
+  });
+
   it('keeps the API order', () => {
     const rows = render([counter({ id: 1, localizedName: 'First' }), counter({ id: 2, localizedName: 'Second' })]);
 
