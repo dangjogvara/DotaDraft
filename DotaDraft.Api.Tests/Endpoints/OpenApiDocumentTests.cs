@@ -5,11 +5,14 @@ namespace DotaDraft.Api.Tests.Endpoints;
 
 public class OpenApiDocumentTests : IAsyncLifetime
 {
-    private readonly DotaDraftApiFactory _factory = new();
+    private DotaDraftApiFactory _factory = null!;
     private JsonNode _document = null!;
 
-    public async Task InitializeAsync() =>
+    public async Task InitializeAsync()
+    {
+        _factory = await DotaDraftApiFactory.CreateAsync();
         _document = JsonNode.Parse(await _factory.CreateClient().GetStringAsync("/openapi/v1.json"))!;
+    }
 
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();
 
@@ -91,7 +94,7 @@ public class OpenApiDocumentTests : IAsyncLifetime
     [Fact]
     public async Task DocumentAndApiReference_AreNotServedInProduction()
     {
-        await using var factory = new DotaDraftApiFactory(environment: "Production");
+        await using var factory = await DotaDraftApiFactory.CreateAsync(environment: "Production");
         var client = factory.CreateClient();
 
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/openapi/v1.json")).StatusCode);

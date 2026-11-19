@@ -6,7 +6,7 @@ Dota 2 counter-pick app: an ASP.NET Core Minimal API (.NET 10) with PostgreSQL v
 
 ```bash
 dotnet build
-dotnet test                                                    # no DB, Docker or secrets needed
+dotnet test                                                    # needs Docker (Testcontainers); no local DB or secrets
 dotnet run --project DotaDraft.Api --launch-profile http       # http://localhost:8080
 dotnet tool restore                                            # once: installs the pinned dotnet-ef
 dotnet ef migrations add <Name> --project DotaDraft.Api
@@ -48,8 +48,9 @@ npx ng build
 - Frontend: standalone components, signals, and Tailwind utility classes in templates. API calls go through `HeroApiService` using `environment.apiBaseUrl`. The interfaces in `hero.models.ts` mirror the C# DTOs, so change both together.
 - Tests:
   - Frontend: `provideHttpClientTesting()` with `HttpTestingController`.
-  - `DotaDraftApiFactory` for HTTP-level tests: the real app with an in-memory DB and `FakeOpenDotaClient`.
-  - The in-memory DB directly for service tests.
+  - `DotaDraftApiFactory.CreateAsync()` for HTTP-level tests: the real app with its own Postgres database and `FakeOpenDotaClient`.
+  - `TestDatabase.CreateContextAsync()` for service tests: an `AppDbContext` on a new, migrated Postgres database. Tests that need one set it up in `IAsyncLifetime.InitializeAsync`. Don't use EF Core's in-memory provider.
+  - `RecordingTimeProvider` (a `FakeTimeProvider`) for `SeedingWorker` tests: wait until the worker's timer exists before advancing time.
   - `ServiceCollection` + `AddOpenDotaClient()` with a stub `HttpMessageHandler` for client and retry tests.
 
 ## Secrets

@@ -7,7 +7,7 @@ public class HealthCheckTests
     [Fact]
     public async Task ReportsHealthy_WhenTheDatabaseIsReachable()
     {
-        await using var factory = new DotaDraftApiFactory();
+        await using var factory = await DotaDraftApiFactory.CreateAsync();
 
         var response = await factory.CreateClient().GetAsync("/health");
 
@@ -18,7 +18,7 @@ public class HealthCheckTests
     [Fact]
     public async Task ReportsUnhealthy_WhenTheDatabaseIsUnreachable()
     {
-        await using var factory = new DotaDraftApiFactory(unreachableDatabase: true);
+        await using var factory = await DotaDraftApiFactory.CreateAsync(unreachableDatabase: true);
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/health");

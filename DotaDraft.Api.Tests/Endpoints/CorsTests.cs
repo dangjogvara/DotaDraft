@@ -6,16 +6,17 @@ public class CorsTests : IAsyncLifetime
 {
     private const string AllowedOrigin = "http://allowed.test";
 
-    private readonly DotaDraftApiFactory _factory = new();
+    private DotaDraftApiFactory _factory = null!;
     private HttpClient _client = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
+        _factory = await DotaDraftApiFactory.CreateAsync();
+
         // Index 0 replaces the dev default (localhost:4200), so the test doesn't depend on appsettings
         _client = _factory
             .WithWebHostBuilder(b => b.UseSetting("Cors:AllowedOrigins:0", AllowedOrigin))
             .CreateClient();
-        return Task.CompletedTask;
     }
 
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();

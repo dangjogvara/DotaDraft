@@ -15,7 +15,7 @@ DotaDraft isn't hosted anywhere yet. To try it, run it locally as described belo
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
+- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL, and for the API tests)
 - EF Core CLI, pinned in `dotnet-tools.json`: run `dotnet tool restore` once after cloning
 - [Node.js](https://nodejs.org/) 20.19+ (for the frontend)
 
@@ -169,11 +169,11 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 GitHub Actions (`.github/workflows/ci.yml`) runs both suites, the Angular build, and a check that the EF model has no changes without a migration, on every pull request and every push to `main`. To run them locally:
 
 ```bash
-dotnet test                                      # API
+dotnet test                                      # API (needs Docker running)
 cd DotaDraft.Web && npm test -- --watch=false    # frontend (Vitest)
 ```
 
-The API tests don't need Docker, the database or any secrets. They use EF Core's in-memory database and a fake OpenDota client. HTTP-level tests start the real app in memory through `DotaDraftApiFactory`. The frontend tests stub HTTP calls with Angular's `HttpTestingController`.
+The API tests need Docker, but not your local database or any secrets. They run against a real PostgreSQL rather than EF Core's in-memory provider, so queries, constraints and transactions behave as they do in production. [Testcontainers](https://dotnet.testcontainers.org/) starts one throwaway Postgres container per test run (`TestDatabase`), applies the migrations once to a template database, and gives each test its own copy of it, so tests stay isolated and run in parallel. The container is removed when the run ends. OpenDota is replaced by a fake client. HTTP-level tests start the real app in memory through `DotaDraftApiFactory.CreateAsync()`. The frontend tests stub HTTP calls with Angular's `HttpTestingController`.
 
 ## Project structure
 

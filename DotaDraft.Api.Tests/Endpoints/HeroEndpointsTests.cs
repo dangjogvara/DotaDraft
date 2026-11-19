@@ -9,10 +9,12 @@ namespace DotaDraft.Api.Tests.Endpoints;
 
 public class HeroEndpointsTests : IAsyncLifetime
 {
-    private readonly DotaDraftApiFactory _factory = new();
+    private DotaDraftApiFactory _factory = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
+        _factory = await DotaDraftApiFactory.CreateAsync();
+
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -22,7 +24,6 @@ public class HeroEndpointsTests : IAsyncLifetime
         }));
 
         db.SaveChanges();
-        return Task.CompletedTask;
     }
 
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();

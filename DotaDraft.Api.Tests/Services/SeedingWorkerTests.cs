@@ -4,23 +4,22 @@ using DotaDraft.Api.Models;
 using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 
 namespace DotaDraft.Api.Tests.Services;
 
 public class SeedingWorkerTests : IAsyncLifetime
 {
     private readonly FakeOpenDotaClient _client = new();
-    private readonly FakeTimeProvider _time = new();
-    private readonly ServiceProvider _services;
-    private readonly SeedingWorker _worker;
+    private readonly RecordingTimeProvider _time = new();
+    private ServiceProvider _services = null!;
+    private SeedingWorker _worker = null!;
 
-    public SeedingWorkerTests()
+    public async Task InitializeAsync()
     {
-        var dbName = Guid.NewGuid().ToString();
+        var connectionString = await TestDatabase.CreateAsync();
         _services = new ServiceCollection()
             .AddLogging()
-            .AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(dbName))
+            .AddDbContext<AppDbContext>(o => o.UseNpgsql(connectionString))
             .Configure<OpenDotaOptions>(o => o.MatchupRequestDelayMs = 0)
             .Configure<MatchupOptions>(o => o.WindowCount = 1)
             .Configure<SeedingOptions>(o => o.IntervalHours = 24)
@@ -38,8 +37,6 @@ public class SeedingWorkerTests : IAsyncLifetime
         ]);
         _client.PublicMatchups[_client.LatestPublicMatchId] = [new(1, 2, 10, 6), new(2, 1, 10, 4)];
     }
-
-    public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()
     {
@@ -182,9 +179,12 @@ public class SeedingWorkerTests : IAsyncLifetime
         AddExistingData(withMatchup: true, seededAgo: TimeSpan.FromHours(20));
         await _worker.StartAsync(CancellationToken.None);
 
-        var elapsed = await AdvanceUntil(() => _client.HeroStatsRequests > 0);
+        // Time stands still until the worker is waiting, so its wait is exact
+        await WaitUntil(() => _time.DueTimes.Count > 0);
+        Assert.Equal(TimeSpan.FromHours(4), _time.DueTimes.Single());
 
-        Assert.Equal(TimeSpan.FromHours(4), elapsed);
+        _time.Advance(TimeSpan.FromHours(4));
+        await WaitUntil(() => _client.HeroStatsRequests > 0);
     }
 
     [Fact]

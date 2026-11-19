@@ -30,7 +30,7 @@ public class ErrorResponseTests
     [Fact]
     public async Task UnknownHero_ReturnsValidationProblem()
     {
-        await using var factory = new DotaDraftApiFactory();
+        await using var factory = await DotaDraftApiFactory.CreateAsync();
 
         var response = await factory.CreateClient().GetAsync("/api/counters?against=999");
 
@@ -43,7 +43,7 @@ public class ErrorResponseTests
     [InlineData("/api/nothing-here")]
     public async Task UnmatchedRoute_ReturnsNotFoundProblem(string url)
     {
-        await using var factory = new DotaDraftApiFactory();
+        await using var factory = await DotaDraftApiFactory.CreateAsync();
 
         var response = await factory.CreateClient().GetAsync(url);
 
@@ -53,7 +53,7 @@ public class ErrorResponseTests
     [Fact]
     public async Task UnhandledException_ReturnsServerErrorProblem_WithoutDetailsOutsideDevelopment()
     {
-        await using var factory = new DotaDraftApiFactory(environment: "Production", unreachableDatabase: true);
+        await using var factory = await DotaDraftApiFactory.CreateAsync(environment: "Production", unreachableDatabase: true);
 
         var response = await GetHeroes(factory);
 
@@ -64,7 +64,7 @@ public class ErrorResponseTests
     [Fact]
     public async Task UnhandledException_IncludesDetailsInDevelopment()
     {
-        await using var factory = new DotaDraftApiFactory(unreachableDatabase: true);
+        await using var factory = await DotaDraftApiFactory.CreateAsync(unreachableDatabase: true);
 
         var response = await GetHeroes(factory);
 
