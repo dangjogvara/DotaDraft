@@ -27,6 +27,7 @@ public class OptionsValidationTests
     [InlineData("Matchups:MinAvgRankTier", "5")]
     [InlineData("Counters:PriorGames", "-1")]
     [InlineData("Seeding:IntervalHours", "0")]
+    [InlineData("Seeding:RetryDelayMinutes", "0")]
     public void InvalidSetting_FailsStartup(string key, string value)
     {
         var ex = Assert.Throws<OptionsValidationException>(() => ValidateAtStartup((key, value)));

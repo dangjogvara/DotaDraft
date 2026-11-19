@@ -4,6 +4,8 @@ using DotaDraft.Api.Models;
 using DotaDraft.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Tests.Services;
 
@@ -187,16 +189,78 @@ public class SeedingWorkerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RecordsNothing_AndTriesAgainAfterTheInterval_WhenTheSeedFails()
+    public async Task RecordsNothing_AndRetriesWithExponentialBackoff_WhenTheSeedFails()
     {
         _client.FailLatestPublicMatchId = true;
         await _worker.StartAsync(CancellationToken.None);
-        await WaitUntil(() => _client.HeroStatsRequests == 1);
 
-        var elapsed = await AdvanceUntil(() => _client.HeroStatsRequests == 2);
-
+        await WaitUntil(() => _time.DueTimes.Count == 1);
         Assert.Null(RecordedSeed());
-        Assert.True(elapsed >= TimeSpan.FromHours(24), $"Tried again after {elapsed}");
+        Assert.Equal(TimeSpan.FromMinutes(5), _time.DueTimes.ElementAt(0));
+
+        _time.Advance(TimeSpan.FromMinutes(5));
+        await WaitUntil(() => _time.DueTimes.Count == 2);
+        Assert.Equal(TimeSpan.FromMinutes(10), _time.DueTimes.ElementAt(1));
+
+        _time.Advance(TimeSpan.FromMinutes(10));
+        await WaitUntil(() => _time.DueTimes.Count == 3);
+        Assert.Equal(TimeSpan.FromMinutes(20), _time.DueTimes.ElementAt(2));
+        Assert.Equal(3, _client.HeroStatsRequests);
+    }
+
+    [Fact]
+    public async Task CapsFailureBackoff_AtTheInterval()
+    {
+        _client.FailLatestPublicMatchId = true;
+        var worker = new SeedingWorker(
+            _services.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new SeedingOptions { IntervalHours = 1, RetryDelayMinutes = 20 }),
+            _time,
+            NullLogger<SeedingWorker>.Instance);
+
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntil(() => _time.DueTimes.Count == 1);
+            Assert.Equal(TimeSpan.FromMinutes(20), _time.DueTimes.ElementAt(0));
+
+            _time.Advance(TimeSpan.FromMinutes(20));
+            await WaitUntil(() => _time.DueTimes.Count == 2);
+            Assert.Equal(TimeSpan.FromMinutes(40), _time.DueTimes.ElementAt(1));
+
+            _time.Advance(TimeSpan.FromMinutes(40));
+            await WaitUntil(() => _time.DueTimes.Count == 3);
+            Assert.Equal(TimeSpan.FromHours(1), _time.DueTimes.ElementAt(2));
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task ResetsFailureBackoff_AfterASeedSucceeds()
+    {
+        _client.FailLatestPublicMatchId = true;
+        await _worker.StartAsync(CancellationToken.None);
+
+        // Two failures: 5 min, then 10 min
+        await WaitUntil(() => _time.DueTimes.Count == 1);
+        _time.Advance(TimeSpan.FromMinutes(5));
+        await WaitUntil(() => _time.DueTimes.Count == 2);
+        Assert.Equal(TimeSpan.FromMinutes(10), _time.DueTimes.ElementAt(1));
+
+        // Next try succeeds: waits the full interval
+        _client.FailLatestPublicMatchId = false;
+        _time.Advance(TimeSpan.FromMinutes(10));
+        await WaitUntil(() => _time.DueTimes.Count == 3);
+        Assert.Equal(TimeSpan.FromHours(24), _time.DueTimes.ElementAt(2));
+
+        // A later failure starts from the base retry delay again, not 20 min
+        _client.FailLatestPublicMatchId = true;
+        _time.Advance(TimeSpan.FromHours(24));
+        await WaitUntil(() => _time.DueTimes.Count == 4);
+        Assert.Equal(TimeSpan.FromMinutes(5), _time.DueTimes.ElementAt(3));
     }
 
     [Fact]
