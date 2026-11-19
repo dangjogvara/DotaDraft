@@ -12,35 +12,39 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DotaDraft.Api.Tests;
 
-// Runs the real app in memory, with an in-memory database and a fake OpenDota client.
-// With unreachableDatabase, every database call fails instead, as if Postgres were down
-public class DotaDraftApiFactory(string environment = "Development", bool unreachableDatabase = false)
-    : WebApplicationFactory<Program>
+// Runs the real app in memory, with its own empty Postgres database (see TestDatabase) and a fake OpenDota client
+public class DotaDraftApiFactory : WebApplicationFactory<Program>
 {
     // Nothing listens on port 1, so the connection is refused straight away
     private const string UnreachableConnectionString =
         "Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none;Timeout=2";
 
+    private readonly string _environment;
+    private readonly string _connectionString;
+
+    private DotaDraftApiFactory(string environment, string connectionString)
+    {
+        _environment = environment;
+        _connectionString = connectionString;
+    }
+
     public FakeOpenDotaClient OpenDota { get; } = new();
 
-    private readonly string _dbName = Guid.NewGuid().ToString();
+    // With unreachableDatabase, every database call fails instead, as if Postgres were down
+    public static async Task<DotaDraftApiFactory> CreateAsync(
+        string environment = "Development", bool unreachableDatabase = false) =>
+        new(environment, unreachableDatabase ? UnreachableConnectionString : await TestDatabase.CreateAsync());
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment(environment);
+        builder.UseEnvironment(_environment);
 
         builder.ConfigureTestServices(services =>
         {
             // Replace the Npgsql registration; leaving it in place would register two providers
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
-            services.AddDbContext<AppDbContext>(o =>
-            {
-                if (unreachableDatabase)
-                    o.UseNpgsql(UnreachableConnectionString);
-                else
-                    o.UseInMemoryDatabase(_dbName);
-            });
+            services.AddDbContext<AppDbContext>(o => o.UseNpgsql(_connectionString));
 
             services.RemoveAll<IOpenDotaClient>();
             services.AddSingleton<IOpenDotaClient>(OpenDota);

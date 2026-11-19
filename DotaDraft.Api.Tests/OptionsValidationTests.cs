@@ -40,9 +40,9 @@ public class OptionsValidationTests
     }
 
     [Fact]
-    public void DefaultSettings_StartUp()
+    public async Task DefaultSettings_StartUp()
     {
-        using var factory = new DotaDraftApiFactory();
+        await using var factory = await DotaDraftApiFactory.CreateAsync();
 
         factory.CreateClient();
     }

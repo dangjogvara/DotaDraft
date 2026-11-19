@@ -6,20 +6,21 @@ using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Tests.Services;
 
-public class CounterServiceTests
+public class CounterServiceTests : IAsyncLifetime
 {
-    private readonly AppDbContext _db = new(new DbContextOptionsBuilder<AppDbContext>()
-        .UseInMemoryDatabase(Guid.NewGuid().ToString())
-        .Options);
+    private AppDbContext _db = null!;
 
-    public CounterServiceTests()
+    public async Task InitializeAsync()
     {
+        _db = await TestDatabase.CreateContextAsync();
         _db.Heroes.AddRange(Enumerable.Range(1, 4).Select(id => new Hero
         {
             Id = id, Name = $"npc_dota_hero_{id}", LocalizedName = $"Hero {id}", PrimaryAttr = "str"
         }));
-        _db.SaveChanges();
+        await _db.SaveChangesAsync();
     }
+
+    public Task DisposeAsync() => _db.DisposeAsync().AsTask();
 
     private CounterService CreateService(int priorGames = 30) =>
         new(_db, Options.Create(new CounterOptions { PriorGames = priorGames }));

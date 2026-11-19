@@ -9,10 +9,12 @@ namespace DotaDraft.Api.Tests.Endpoints;
 // The ranking against one enemy, with data where raw win rate would order the counters differently
 public class SingleEnemyCountersTests : IAsyncLifetime
 {
-    private readonly DotaDraftApiFactory _factory = new();
+    private DotaDraftApiFactory _factory = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
+        _factory = await DotaDraftApiFactory.CreateAsync();
+
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -34,7 +36,6 @@ public class SingleEnemyCountersTests : IAsyncLifetime
             Matchup(4, 1, wins: 60, games: 100), Matchup(4, 5, wins: 60, games: 100),
             Matchup(5, 1, wins: 0, games: 0));
         db.SaveChanges();
-        return Task.CompletedTask;
     }
 
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();

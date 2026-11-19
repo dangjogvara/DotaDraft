@@ -10,10 +10,12 @@ namespace DotaDraft.Api.Tests.Endpoints;
 
 public class DraftEndpointsTests : IAsyncLifetime
 {
-    private readonly DotaDraftApiFactory _factory = new();
+    private DotaDraftApiFactory _factory = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
+        _factory = await DotaDraftApiFactory.CreateAsync();
+
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -38,7 +40,6 @@ public class DraftEndpointsTests : IAsyncLifetime
             Matchup(5, 1, 60, 100), Matchup(5, 2, 60, 100), Matchup(5, 6, 60, 100),
             Matchup(2, 1, 90, 100), Matchup(2, 6, 10, 100));
         db.SaveChanges();
-        return Task.CompletedTask;
     }
 
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();

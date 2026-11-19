@@ -8,12 +8,14 @@ using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Tests.Services;
 
-public class HeroIngestionServiceTests
+public class HeroIngestionServiceTests : IAsyncLifetime
 {
     private readonly FakeOpenDotaClient _client = new();
-    private readonly AppDbContext _db = new(new DbContextOptionsBuilder<AppDbContext>()
-        .UseInMemoryDatabase(Guid.NewGuid().ToString())
-        .Options);
+    private AppDbContext _db = null!;
+
+    public async Task InitializeAsync() => _db = await TestDatabase.CreateContextAsync();
+
+    public Task DisposeAsync() => _db.DisposeAsync().AsTask();
 
     private HeroIngestionService CreateService(int matchupRequestDelayMs = 0, int windowCount = 3, int? minAvgRankTier = null) =>
         new(_client, _db, NullLogger<HeroIngestionService>.Instance,
