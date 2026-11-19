@@ -7,13 +7,16 @@ namespace DotaDraft.Api.Services;
 
 // Seeds heroes and then matchups in the background, every Seeding:IntervalHours counted from the last
 // successful seed, which is stored in the database. So a restart only seeds straight away when the data is
-// stale or missing. A failed run is logged, and the worker tries again after another interval
+// stale or missing. A failed run is logged and retried with exponential backoff starting at
+// Seeding:RetryDelayMinutes, capped at Seeding:IntervalHours
 public class SeedingWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<SeedingOptions> options,
     TimeProvider time,
     ILogger<SeedingWorker> logger) : BackgroundService
 {
+    private int _consecutiveFailures;
+
     private TimeSpan Interval => TimeSpan.FromHours(options.Value.IntervalHours);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -40,11 +43,14 @@ public class SeedingWorker(
             var timeUntilDue = await TimeUntilDueAsync(stoppingToken);
             if (timeUntilDue > TimeSpan.Zero)
             {
+                _consecutiveFailures = 0;
                 logger.LogInformation("Matchups are up to date; the next seed runs in {Hours:0.#} hours.", timeUntilDue.TotalHours);
                 return timeUntilDue;
             }
 
             await SeedAsync(stoppingToken);
+            _consecutiveFailures = 0;
+            return Interval;
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -52,13 +58,27 @@ public class SeedingWorker(
         }
         catch (Exception ex)
         {
+            _consecutiveFailures++;
+            var retryIn = RetryDelay(_consecutiveFailures);
             // Keep the worker alive. A failed matchup seed writes nothing, so the existing matchups stay in place
-            logger.LogError(ex, "Seeding failed; the next try is in {Hours} hours.", options.Value.IntervalHours);
+            logger.LogError(ex, "Seeding failed; the next try is in {Delay}.", FormatDelay(retryIn));
+            return retryIn;
         }
-
-        // After a seed, or a failed one, the next is due one interval from now
-        return Interval;
     }
+
+    // Doubles Seeding:RetryDelayMinutes on each consecutive failure, capped at Interval
+    private TimeSpan RetryDelay(int failureCount)
+    {
+        var delay = TimeSpan.FromMinutes(options.Value.RetryDelayMinutes);
+        for (var i = 1; i < failureCount && delay < Interval; i++)
+            delay += delay;
+        return delay < Interval ? delay : Interval;
+    }
+
+    private static string FormatDelay(TimeSpan delay) =>
+        delay >= TimeSpan.FromHours(1)
+            ? $"{delay.TotalHours:0.#} {(delay.TotalHours == 1 ? "hour" : "hours")}"
+            : $"{delay.TotalMinutes:0.#} {(delay.TotalMinutes == 1 ? "minute" : "minutes")}";
 
     // Zero when a seed is due now: there are no matchups (e.g. a fresh database), no seed has been
     // recorded, or the last one finished more than an interval ago

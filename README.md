@@ -80,7 +80,7 @@ The API fills the database itself, in the background:
 - **Every 24 hours** (`Seeding:IntervalHours`), counted from when the last successful seed finished, so new patches and matches are picked up. That time is stored in the database (`SeedingStates`), so restarts don't reset the clock: a restart seeds straight away only if the last seed is older than the interval.
 - **At startup** if there are no matchups, or no seed has been recorded. On a fresh database the data appears about 1.5 minutes after the API starts.
 
-Each run fetches heroes first, then matchups. Progress and errors go to the API's logs. A failed run is logged, and the next scheduled run tries again.
+Each run fetches heroes first, then matchups. Progress and errors go to the API's logs. A failed run is logged and retried with exponential backoff starting at `Seeding:RetryDelayMinutes` (default 5 minutes), capped at `Seeding:IntervalHours`.
 
 To re-seed locally right away, empty the matchup table and restart the API:
 
@@ -159,6 +159,7 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 | `Matchups:MinAvgRankTier` | none | Only count matches with at least this average rank (10–15 Herald … 80 Immortal); unset includes all ranks |
 | `Counters:PriorGames` | `30` | `k` in the counter ranking |
 | `Seeding:IntervalHours` | `24` | Hours between automatic seeds (1–720) |
+| `Seeding:RetryDelayMinutes` | `5` | Minutes before retrying a failed seed; doubles on each consecutive failure, up to `Seeding:IntervalHours` (1–1440) |
 | `Cors:AllowedOrigins` | `http://localhost:4200` in Development, none otherwise | Origins allowed to call the API from a browser |
 
 **CORS:** in Development, the Angular dev server (`ng serve` on port 4200) can call the API directly. In other environments, no origins are allowed until you configure them. The API only accepts `GET` requests from browsers.
