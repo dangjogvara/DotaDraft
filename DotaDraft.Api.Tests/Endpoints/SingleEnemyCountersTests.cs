@@ -68,7 +68,7 @@ public class SingleEnemyCountersTests : IAsyncLifetime
         // (70 - 100 * 0.5) / (100 + 30) = 15.38 points
         Assert.Equal(15.38m, hero3.TotalAdvantage);
         Assert.Equal(50m, hero3.BaselineWinRate);
-        Assert.Equal(new EnemyMatchupDto(1, 15.38m, 70m, 100), Assert.Single(hero3.Matchups));
+        Assert.Equal(new EnemyMatchupDto(1, 15.38m, 70m, 50m, 100), Assert.Single(hero3.Matchups));
     }
 
     [Fact]

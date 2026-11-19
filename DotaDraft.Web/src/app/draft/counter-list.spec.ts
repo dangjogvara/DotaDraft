@@ -22,7 +22,7 @@ describe('CounterList', () => {
     imgUrl: null,
     totalAdvantage: 12.4,
     baselineWinRate: 45.34,
-    matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.91, gamesPlayed: 23 }],
+    matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.91, expectedWinRate: 44.36, gamesPlayed: 23 }],
     ...overrides,
   });
 
@@ -41,25 +41,29 @@ describe('CounterList', () => {
       el.textContent?.replace(/\s+/g, ' ').trim(),
     );
 
-  it('names the enemy, the games and the usual win rate for one enemy', () => {
-    const [row] = render([counter({ matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.91, gamesPlayed: 1841 }] })]);
+  it('names the enemy, the expected win rate, the games and the usual win rate for one enemy', () => {
+    const [row] = render([
+      counter({ matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.91, expectedWinRate: 44.36, gamesPlayed: 1841 }] }),
+    ]);
 
     expect(row).toContain('Weaver');
     expect(row).toContain('+12.4');
     expect(text('[data-testid="advantage-label"]')).toEqual(['better than expected']);
-    expect(text('[data-testid="matchup"]')).toEqual(['Wins 73.9% against Anti-Mage (1,841 games)']);
+    expect(text('[data-testid="matchup"]')).toEqual(['Wins 73.9% against Anti-Mage, expected 44.4% (1,841 games)']);
     expect(row).toContain('Usually wins 45.3%');
   });
 
   it('flags a matchup with few games', () => {
     render([counter({})]);
 
-    expect(text('[data-testid="matchup"]')).toEqual(['Wins 73.9% against Anti-Mage (only 23 games)']);
+    expect(text('[data-testid="matchup"]')).toEqual(['Wins 73.9% against Anti-Mage, expected 44.4% (only 23 games)']);
     expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="matchup"] .text-amber-400')).not.toBeNull();
   });
 
   it('says so when there are no games against the enemy', () => {
-    render([counter({ totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: null, gamesPlayed: 0 }] })]);
+    render([
+      counter({ totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: null, expectedWinRate: null, gamesPlayed: 0 }] }),
+    ]);
 
     expect(text('[data-testid="matchup"]')).toEqual(['No games against Anti-Mage yet']);
     expect(text('[data-testid="advantage-label"]')).toEqual(['as expected']);
@@ -71,9 +75,9 @@ describe('CounterList', () => {
         counter({
           totalAdvantage: 9.5,
           matchups: [
-            { enemyId: 1, advantage: 9.5, winRate: 68, gamesPlayed: 1500 },
-            { enemyId: 3, advantage: 2, winRate: 60, gamesPlayed: 40 },
-            { enemyId: 2, advantage: 0, winRate: null, gamesPlayed: 0 },
+            { enemyId: 1, advantage: 9.5, winRate: 68, expectedWinRate: 52.5, gamesPlayed: 1500 },
+            { enemyId: 3, advantage: 2, winRate: 60, expectedWinRate: 51, gamesPlayed: 40 },
+            { enemyId: 2, advantage: 0, winRate: null, expectedWinRate: null, gamesPlayed: 0 },
           ],
         }),
       ],
@@ -81,13 +85,17 @@ describe('CounterList', () => {
     );
 
     // The chip's parts are separate spans laid out with a flex gap, so join them the way they appear
-    const chips = [...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="breakdown"]')].map(
-      (c) => [...c.querySelectorAll('span')].map((s) => s.textContent?.trim()).join(' '),
-    );
+    const chipEls = [...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="breakdown"]')];
+    const chips = chipEls.map((c) => [...c.querySelectorAll('span')].map((s) => s.textContent?.trim()).join(' '));
     expect(chips).toEqual([
       'vs Anti-Mage +9.5 (1,500 games)',
       'vs Lion +2.0 (only 40 games)',
       'vs Axe no data',
+    ]);
+    expect(chipEls.map((c) => c.getAttribute('title'))).toEqual([
+      'Wins 68.0% against Anti-Mage, expected 52.5% over 1,500 games',
+      'Wins 60.0% against Lion, expected 51.0% over 40 games, too few to be sure',
+      'No matchup data',
     ]);
     expect(text('[data-testid="advantage-label"]')).toEqual(['combined edge']);
   });
@@ -107,13 +115,13 @@ describe('CounterList', () => {
           id: 1,
           totalAdvantage: 5.5,
           matchups: [
-            { enemyId: 1, advantage: 8, winRate: 60, gamesPlayed: 500 },
-            { enemyId: 2, advantage: -2.5, winRate: 45, gamesPlayed: 500 },
-            { enemyId: 3, advantage: 0, winRate: 50, gamesPlayed: 500 },
+            { enemyId: 1, advantage: 8, winRate: 60, expectedWinRate: 52, gamesPlayed: 500 },
+            { enemyId: 2, advantage: -2.5, winRate: 45, expectedWinRate: 47.5, gamesPlayed: 500 },
+            { enemyId: 3, advantage: 0, winRate: 50, expectedWinRate: 50, gamesPlayed: 500 },
           ],
         }),
-        counter({ id: 2, totalAdvantage: -3.2, matchups: [{ enemyId: 1, advantage: -3.2, winRate: 46, gamesPlayed: 500 }] }),
-        counter({ id: 3, totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: 50, gamesPlayed: 500 }] }),
+        counter({ id: 2, totalAdvantage: -3.2, matchups: [{ enemyId: 1, advantage: -3.2, winRate: 46, expectedWinRate: 49.2, gamesPlayed: 500 }] }),
+        counter({ id: 3, totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: 50, expectedWinRate: 50, gamesPlayed: 500 }] }),
       ],
       [enemy(1, 'Anti-Mage'), enemy(2, 'Axe'), enemy(3, 'Lion')],
     );
@@ -132,10 +140,10 @@ describe('CounterList', () => {
 
   it('words single-enemy tooltips for positive, negative, zero and missing advantages', () => {
     render([
-      counter({ id: 1, localizedName: 'Weaver', totalAdvantage: 12.4, matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.9, gamesPlayed: 500 }] }),
-      counter({ id: 2, localizedName: 'Axe', totalAdvantage: -4.25, matchups: [{ enemyId: 1, advantage: -4.25, winRate: 45.7, gamesPlayed: 500 }] }),
-      counter({ id: 3, localizedName: 'Lion', totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: 50, gamesPlayed: 500 }] }),
-      counter({ id: 4, localizedName: 'Bane', totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: null, gamesPlayed: 0 }] }),
+      counter({ id: 1, localizedName: 'Weaver', totalAdvantage: 12.4, matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.9, expectedWinRate: 61.5, gamesPlayed: 500 }] }),
+      counter({ id: 2, localizedName: 'Axe', totalAdvantage: -4.25, matchups: [{ enemyId: 1, advantage: -4.25, winRate: 45.7, expectedWinRate: 50, gamesPlayed: 500 }] }),
+      counter({ id: 3, localizedName: 'Lion', totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: 50, expectedWinRate: 50, gamesPlayed: 500 }] }),
+      counter({ id: 4, localizedName: 'Bane', totalAdvantage: 0, matchups: [{ enemyId: 1, advantage: 0, winRate: null, expectedWinRate: null, gamesPlayed: 0 }] }),
     ]);
 
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="advantage"]')].map((el) =>

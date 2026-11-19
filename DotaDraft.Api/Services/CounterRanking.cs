@@ -70,13 +70,19 @@ public static class CounterRanking
                 double EnemyBaseline(int enemyId) => enemyBaselines.GetValueOrDefault(enemyId, Hero.DefaultBaselineWinRate);
 
                 var perEnemy = enemyIds
-                    .Select(enemyId => played.TryGetValue((hero.Id, enemyId), out var m)
-                        ? new EnemyMatchupDto(
+                    .Select(enemyId =>
+                    {
+                        if (!played.TryGetValue((hero.Id, enemyId), out var m))
+                            return new EnemyMatchupDto(enemyId, 0m, null, null, 0);
+
+                        var expected = ExpectedWinRate(baseline, EnemyBaseline(enemyId));
+                        return new EnemyMatchupDto(
                             enemyId,
-                            ToPoints(Advantage(m.Wins, m.GamesPlayed, ExpectedWinRate(baseline, EnemyBaseline(enemyId)), priorGames)),
+                            ToPoints(Advantage(m.Wins, m.GamesPlayed, expected, priorGames)),
                             m.WinRate,
-                            m.GamesPlayed)
-                        : new EnemyMatchupDto(enemyId, 0m, null, 0))
+                            ToPoints(expected),
+                            m.GamesPlayed);
+                    })
                     .ToList();
 
                 return new HeroScoreDto(

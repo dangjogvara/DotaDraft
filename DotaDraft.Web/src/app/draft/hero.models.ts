@@ -30,6 +30,8 @@ export interface EnemyMatchup {
   advantage: number;
   /** Null when there is no matchup data against this enemy. */
   winRate: number | null;
+  /** Win rate predicted from both heroes' baselines; null without matchup data. */
+  expectedWinRate: number | null;
   gamesPlayed: number;
 }
 
