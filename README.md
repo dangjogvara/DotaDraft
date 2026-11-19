@@ -117,7 +117,7 @@ A counter to one enemy (`/api/counters?against=1`) looks like this (shortened):
 ```json
 {
   "id": 63, "localizedName": "Weaver", "totalAdvantage": 12.82, "baselineWinRate": 45.34,
-  "matchups": [{ "enemyId": 1, "advantage": 12.82, "winRate": 73.91, "gamesPlayed": 23 }]
+  "matchups": [{ "enemyId": 1, "advantage": 12.82, "winRate": 73.91, "expectedWinRate": 44.36, "gamesPlayed": 23 }]
 }
 ```
 

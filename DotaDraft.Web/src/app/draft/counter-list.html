@@ -12,7 +12,7 @@
           <p class="truncate font-medium">{{ counter.localizedName }}</p>
           @if (single && single.winRate !== null) {
             <p class="text-xs text-slate-300" data-testid="matchup">
-              Wins {{ single.winRate | number: '1.1-1' }}% against {{ enemyName(single.enemyId) }}
+              Wins {{ single.winRate | number: '1.1-1' }}% against {{ enemyName(single.enemyId) }}@if (single.expectedWinRate !== null) {, expected {{ single.expectedWinRate | number: '1.1-1' }}%}
               <span [class.text-amber-400]="isFewGames(single.gamesPlayed)">
                 ({{ isFewGames(single.gamesPlayed) ? 'only ' : '' }}{{ single.gamesPlayed | number }} games)
               </span>
@@ -61,13 +61,7 @@
             <li
               class="inline-flex items-baseline gap-1 rounded bg-slate-900 px-1.5 py-0.5 text-xs tabular-nums"
               data-testid="breakdown"
-              [attr.title]="
-                m.winRate === null
-                  ? 'No matchup data'
-                  : 'Wins ' + (m.winRate | number: '1.1-1') + '% against ' + enemyName(m.enemyId) +
-                    ' over ' + (m.gamesPlayed | number) + ' games' +
-                    (isFewGames(m.gamesPlayed) ? ', too few to be sure' : '')
-              "
+              [attr.title]="breakdownTitle(m)"
             >
               <span class="text-slate-400">vs {{ enemyName(m.enemyId) }}</span>
               @if (m.winRate === null) {

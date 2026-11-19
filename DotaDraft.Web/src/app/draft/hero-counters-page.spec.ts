@@ -33,7 +33,7 @@ const weaver: HeroScore = {
   imgUrl: null,
   totalAdvantage: 12.4,
   baselineWinRate: 45.34,
-  matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.91, gamesPlayed: 23 }],
+  matchups: [{ enemyId: 1, advantage: 12.4, winRate: 73.91, expectedWinRate: 44.36, gamesPlayed: 23 }],
 };
 
 describe('HeroCountersPage', () => {
@@ -662,7 +662,7 @@ describe('HeroCountersPage', () => {
       imgUrl: null,
       totalAdvantage: 4.52,
       baselineWinRate: 50.1,
-      matchups: [{ enemyId: 1, advantage: 4.52, winRate: 55.3, gamesPlayed: 1200 }],
+      matchups: [{ enemyId: 1, advantage: 4.52, winRate: 55.3, expectedWinRate: 50.1, gamesPlayed: 1200 }],
     };
     const panel = () => text('[data-testid="team-matchup"]');
 

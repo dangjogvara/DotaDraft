@@ -111,7 +111,7 @@ public class CounterRankingTests
         var score = Assert.Single(scores);
         Assert.Equal(10m, score.TotalAdvantage);
         Assert.Equal(50m, score.BaselineWinRate);
-        Assert.Equal(new EnemyMatchupDto(1, 10m, 60m, 100), Assert.Single(score.Matchups));
+        Assert.Equal(new EnemyMatchupDto(1, 10m, 60m, 50m, 100), Assert.Single(score.Matchups));
     }
 
     [Fact]
@@ -145,8 +145,8 @@ public class CounterRankingTests
             [Matchup(Weaver, against: 1, wins: 60, games: 100), Matchup(Weaver, against: 5, wins: 0, games: 0)], priorGames: 0);
 
         var score = Assert.Single(scores);
-        Assert.Equal(new EnemyMatchupDto(14, 0m, null, 0), score.Matchups[1]);
-        Assert.Equal(new EnemyMatchupDto(5, 0m, null, 0), score.Matchups[2]);
+        Assert.Equal(new EnemyMatchupDto(14, 0m, null, null, 0), score.Matchups[1]);
+        Assert.Equal(new EnemyMatchupDto(5, 0m, null, null, 0), score.Matchups[2]);
         Assert.Equal(10m, score.TotalAdvantage);
     }
 
@@ -240,6 +240,7 @@ public class CounterRankingTests
 
         var score = Assert.Single(scores);
         Assert.Equal([0m, 10m, 20m], score.Matchups.Select(m => m.Advantage));
+        Assert.Equal([60m, 50m, 40m], score.Matchups.Select(m => m.ExpectedWinRate));
         Assert.Equal(30m, score.TotalAdvantage);
     }
 
@@ -253,6 +254,8 @@ public class CounterRankingTests
             [strongWeaver], [1], new Dictionary<int, double> { [1] = 0.45 },
             [Matchup(strongWeaver, against: 1, wins: 70, games: 100)], priorGames: 0);
 
-        Assert.Equal(10m, Assert.Single(scores).TotalAdvantage);
+        var score = Assert.Single(scores);
+        Assert.Equal(10m, score.TotalAdvantage);
+        Assert.Equal(60m, Assert.Single(score.Matchups).ExpectedWinRate);
     }
 }

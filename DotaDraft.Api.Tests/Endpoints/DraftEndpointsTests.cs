@@ -96,9 +96,18 @@ public class DraftEndpointsTests : IAsyncLifetime
         var hero4 = (await GetCounters("?against=2&against=1")).Single(c => c.Id == 4);
 
         Assert.Equal([2, 1], hero4.Matchups.Select(m => m.EnemyId));
-        Assert.Equal(new EnemyMatchupDto(2, 0m, null, 0), hero4.Matchups[0]);
-        Assert.Equal(new EnemyMatchupDto(1, 19.23m, 75m, 100), hero4.Matchups[1]);
+        Assert.Equal(new EnemyMatchupDto(2, 0m, null, null, 0), hero4.Matchups[0]);
+        Assert.Equal(new EnemyMatchupDto(1, 19.23m, 75m, 50m, 100), hero4.Matchups[1]);
         Assert.Equal(50m, hero4.BaselineWinRate);
+    }
+
+    [Fact]
+    public async Task ReturnsExpectedWinRatePerEnemy()
+    {
+        var hero3 = (await GetCounters("?against=1&against=2")).Single(c => c.Id == 3);
+
+        // Hero 3's baseline is 170/300 = 56.67% against 50% enemies
+        Assert.Equal([56.67m, 56.67m], hero3.Matchups.Select(m => m.ExpectedWinRate));
     }
 
     [Theory]
@@ -222,7 +231,7 @@ public class DraftEndpointsTests : IAsyncLifetime
 
         Assert.Equal(6, hero.Id);
         Assert.Equal(0m, hero.TotalAdvantage);
-        Assert.Equal([new EnemyMatchupDto(1, 0m, null, 0)], hero.Matchups);
+        Assert.Equal([new EnemyMatchupDto(1, 0m, null, null, 0)], hero.Matchups);
     }
 
     [Theory]

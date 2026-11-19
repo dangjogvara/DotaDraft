@@ -66,4 +66,16 @@ export class CounterList {
     const direction = counter.totalAdvantage > 0 ? 'more' : 'less';
     return `${counter.localizedName} wins ${points} percentage points ${direction} often against ${enemy} than both heroes' usual win rates predict, adjusted for how many games there are`;
   }
+
+  protected breakdownTitle(m: EnemyMatchup): string {
+    if (m.winRate === null) return 'No matchup data';
+    const winRate = formatNumber(m.winRate, this.locale, '1.1-1');
+    const expected =
+      m.expectedWinRate !== null
+        ? `, expected ${formatNumber(m.expectedWinRate, this.locale, '1.1-1')}%`
+        : '';
+    const games = formatNumber(m.gamesPlayed, this.locale);
+    const caveat = this.isFewGames(m.gamesPlayed) ? ', too few to be sure' : '';
+    return `Wins ${winRate}% against ${this.enemyName(m.enemyId)}${expected} over ${games} games${caveat}`;
+  }
 }

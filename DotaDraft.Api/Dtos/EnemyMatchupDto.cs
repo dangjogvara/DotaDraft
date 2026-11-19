@@ -4,10 +4,12 @@ namespace DotaDraft.Api.Dtos;
 /// <param name="EnemyId">The enemy hero's ID.</param>
 /// <param name="Advantage">Sample-adjusted advantage in percentage points; 0 without matchup data.</param>
 /// <param name="WinRate">Raw win rate against this enemy; null without matchup data.</param>
+/// <param name="ExpectedWinRate">Win rate predicted from both heroes' baselines; null without matchup data.</param>
 /// <param name="GamesPlayed">Games behind the numbers; 0 without matchup data.</param>
 public record EnemyMatchupDto(
     int EnemyId,
     decimal Advantage,
     decimal? WinRate,
+    decimal? ExpectedWinRate,
     int GamesPlayed
 );

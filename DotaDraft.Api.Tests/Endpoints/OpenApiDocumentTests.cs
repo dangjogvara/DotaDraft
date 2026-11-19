@@ -73,6 +73,7 @@ public class OpenApiDocumentTests : IAsyncLifetime
         var properties = _document["components"]!["schemas"]!["EnemyMatchupDto"]!["properties"]!;
 
         Assert.Contains("percentage points", (string?)properties["advantage"]!["description"]);
+        Assert.Contains("baselines", (string?)properties["expectedWinRate"]!["description"]);
         Assert.Equal("integer", (string?)properties["gamesPlayed"]!["type"]);
         Assert.Equal("number", (string?)properties["advantage"]!["type"]);
     }
