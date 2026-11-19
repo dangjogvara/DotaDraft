@@ -20,7 +20,6 @@ public class SeedingWorkerTests : IAsyncLifetime
         _services = new ServiceCollection()
             .AddLogging()
             .AddDbContext<AppDbContext>(o => o.UseNpgsql(connectionString))
-            .Configure<OpenDotaOptions>(o => o.MatchupRequestDelayMs = 0)
             .Configure<MatchupOptions>(o => o.WindowCount = 1)
             .Configure<SeedingOptions>(o => o.IntervalHours = 24)
             .AddSingleton<IOpenDotaClient>(_client)

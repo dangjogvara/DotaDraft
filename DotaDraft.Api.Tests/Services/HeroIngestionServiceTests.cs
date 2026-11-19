@@ -17,9 +17,9 @@ public class HeroIngestionServiceTests : IAsyncLifetime
 
     public Task DisposeAsync() => _db.DisposeAsync().AsTask();
 
-    private HeroIngestionService CreateService(int matchupRequestDelayMs = 0, int windowCount = 3, int? minAvgRankTier = null) =>
+    private HeroIngestionService CreateService(int windowCount = 3, int? minAvgRankTier = null) =>
         new(_client, _db, NullLogger<HeroIngestionService>.Instance,
-            Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test", MatchupRequestDelayMs = matchupRequestDelayMs }),
+            Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test" }),
             Options.Create(new MatchupOptions { WindowSize = 100, WindowCount = windowCount, MinAvgRankTier = minAvgRankTier }));
 
     private static OpenDotaHeroDto HeroDto(int id, string? img = null) =>
@@ -269,24 +269,5 @@ public class HeroIngestionServiceTests : IAsyncLifetime
         await Assert.ThrowsAsync<OpenDotaException>(() => CreateService().SeedMatchupsAsync());
 
         Assert.Empty(_client.PublicMatchupRequests);
-    }
-
-    [Fact]
-    public async Task SeedMatchups_KeepsRateLimitDelay_AfterFailedWindows()
-    {
-        AddHeroes(1, 2);
-        _client.LatestPublicMatchId = 1000;
-        _client.FailingWindows.Add(1000);
-        _client.PublicMatchups[900] = [Pair(1, 2, 10, 5)];
-        _client.PublicMatchups[800] = [Pair(1, 2, 10, 5)];
-        const int delayMs = 100;
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        await CreateService(delayMs).SeedMatchupsAsync();
-        stopwatch.Stop();
-
-        // One delay before each of the three window requests. Allow some slack, since timers can fire
-        // a little early; without the delays the run takes ~1 ms
-        Assert.True(stopwatch.ElapsedMilliseconds >= 3 * delayMs - 20, $"Elapsed {stopwatch.ElapsedMilliseconds} ms");
     }
 }

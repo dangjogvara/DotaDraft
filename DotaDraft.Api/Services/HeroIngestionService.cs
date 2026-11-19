@@ -106,9 +106,6 @@ public class HeroIngestionService(
 
         for (var i = 0; i < windowCount; i++)
         {
-            // Rate limiting: the latest-match query was the first request
-            await Task.Delay(_options.MatchupRequestDelayMs, ct);
-
             var toMatchId = latestMatchId - (long)i * windowSize;
             var fromMatchId = toMatchId - windowSize + 1;
 
