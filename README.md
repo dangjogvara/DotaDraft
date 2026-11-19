@@ -91,7 +91,7 @@ docker exec dota_postgres psql -U postgres -d dotadraft -c 'TRUNCATE "HeroMatchu
 - **Matchups come from public ranked matches.** DotaDraft runs SQL through OpenDota's [`/explorer`](https://docs.opendota.com/#tag/explorer) endpoint over its `public_matches` table: ranked All Pick games, counting every hero against every hero on the other team. The explorer stops queries after about 15 seconds, so the seed walks back from the newest match in windows of `WindowSize` match IDs (default 15 × 200,000, roughly the last 1.5 days) and adds the windows together. That's about 16 requests and a median of roughly 1,900 games per matchup.
 - **A matchup seed replaces the whole table.** Pairs that no longer appear are removed. Each hero's baseline win rate (see [How counters are ranked](#how-counters-are-ranked)) is recalculated in the same save, so it always matches the matchups. If fewer than half the windows can be fetched, nothing is written and the existing data is kept. If only some fail, the rest is saved and the failure is logged.
 - **`/explorer` isn't a stable, documented API.** If OpenDota changes its schema, the queries fail with an `err` message in the logs, and seeding fails while the existing matchups are kept.
-- Requests are spaced about 1 second apart to stay under the free tier's 60 requests/minute, and rate-limit responses (429) are retried with backoff.
+- Requests are sent one at a time, and each explorer query takes a few seconds, so a seed stays well under the free tier's 60 requests/minute without any extra spacing. Rate-limit responses (429) are retried with backoff, honouring `Retry-After`.
 
 ## API
 
@@ -151,7 +151,6 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 |---|---|---|
 | `ConnectionStrings:DefaultConnection` | none (required) | PostgreSQL connection string, kept in user-secrets (see [Local setup](#local-setup)) |
 | `OpenDota:ApiKey` | none | Optional OpenDota API key, sent as a bearer token |
-| `OpenDota:MatchupRequestDelayMs` | `1100` | Delay between matchup requests (one per window) |
 | `OpenDota:MaxRetryAttempts` | `3` | Retries after a transient failure (429, 5xx, network) |
 | `OpenDota:RetryBaseDelayMs` | `5000` | First retry delay; doubles on each retry |
 | `OpenDota:RetryMaxDelayMs` | `60000` | Longest retry delay; a longer `Retry-After` is not retried |
