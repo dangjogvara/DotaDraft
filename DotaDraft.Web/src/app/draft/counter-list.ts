@@ -1,14 +1,16 @@
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, formatNumber } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  LOCALE_ID,
   booleanAttribute,
   computed,
+  inject,
   input,
   output,
 } from '@angular/core';
 
-import { HeroScore, Hero } from './hero.models';
+import { EnemyMatchup, HeroScore, Hero } from './hero.models';
 
 /** Matchups with fewer games than this are flagged as less certain. */
 export const FEW_GAMES = 200;
@@ -20,6 +22,8 @@ export const FEW_GAMES = 200;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CounterList {
+  private readonly locale = inject(LOCALE_ID);
+
   readonly counters = input.required<HeroScore[]>();
   /** The enemy lineup, to label each counter's per-enemy breakdown. */
   readonly lineup = input.required<Hero[]>();
@@ -45,5 +49,21 @@ export class CounterList {
     if (advantage > 0) return 'better than expected';
     if (advantage < 0) return 'worse than expected';
     return 'as expected';
+  }
+
+  protected advantageTitle(counter: HeroScore, single: EnemyMatchup | null): string {
+    if (!single) {
+      return `Sum of ${counter.localizedName}'s edge against each enemy, in percentage points`;
+    }
+    const enemy = this.enemyName(single.enemyId);
+    if (single.winRate === null) {
+      return `No matchup data against ${enemy}`;
+    }
+    if (counter.totalAdvantage === 0) {
+      return `${counter.localizedName} wins as often against ${enemy} as both heroes' usual win rates predict, adjusted for how many games there are`;
+    }
+    const points = formatNumber(Math.abs(counter.totalAdvantage), this.locale, '1.1-1');
+    const direction = counter.totalAdvantage > 0 ? 'more' : 'less';
+    return `${counter.localizedName} wins ${points} percentage points ${direction} often against ${enemy} than both heroes' usual win rates predict, adjusted for how many games there are`;
   }
 }

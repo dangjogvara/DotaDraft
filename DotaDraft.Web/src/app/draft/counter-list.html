@@ -24,18 +24,15 @@
         </div>
         <div
           class="shrink-0 text-right"
-          [attr.title]="
-            single
-              ? counter.localizedName + ' wins ' + (counter.totalAdvantage | number: '1.1-1') +
-                ' percentage points more often against ' + enemyName(single.enemyId) +
-                ' than both heroes\' usual win rates predict, adjusted for how many games there are'
-              : 'Sum of ' + counter.localizedName + '\'s edge against each enemy, in percentage points'
-          "
+          data-testid="advantage"
+          [attr.title]="advantageTitle(counter, single)"
         >
           <p
             class="text-lg leading-tight font-semibold tabular-nums"
+            data-testid="advantage-value"
             [class.text-emerald-400]="counter.totalAdvantage > 0"
-            [class.text-slate-400]="counter.totalAdvantage <= 0"
+            [class.text-red-400]="counter.totalAdvantage < 0"
+            [class.text-slate-400]="counter.totalAdvantage === 0"
           >
             {{ counter.totalAdvantage > 0 ? '+' : '' }}{{ counter.totalAdvantage | number: '1.1-1' }}
           </p>
@@ -76,7 +73,12 @@
               @if (m.winRate === null) {
                 <span class="text-slate-500">no data</span>
               } @else {
-                <span [class.text-emerald-400]="m.advantage > 0" [class.text-slate-400]="m.advantage <= 0">
+                <span
+                  data-testid="breakdown-advantage"
+                  [class.text-emerald-400]="m.advantage > 0"
+                  [class.text-red-400]="m.advantage < 0"
+                  [class.text-slate-400]="m.advantage === 0"
+                >
                   {{ m.advantage > 0 ? '+' : '' }}{{ m.advantage | number: '1.1-1' }}
                 </span>
                 <span [class.text-amber-400]="isFewGames(m.gamesPlayed)" [class.text-slate-500]="!isFewGames(m.gamesPlayed)">
