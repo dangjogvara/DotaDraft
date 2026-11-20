@@ -1,3 +1,4 @@
+using DotaDraft.Api.Integrations.OpenDota;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -22,6 +23,7 @@ public class OptionsValidationTests
     [Theory]
     [InlineData("OpenDota:BaseUrl", "not a url")]
     [InlineData("OpenDota:MaxRetryAttempts", "-1")]
+    [InlineData("OpenDota:AttemptTimeoutMs", "0")]
     [InlineData("Matchups:WindowSize", "0")]
     [InlineData("Matchups:WindowCount", "0")]
     [InlineData("Matchups:MinAvgRankTier", "5")]
@@ -32,6 +34,15 @@ public class OptionsValidationTests
     {
         var ex = Assert.Throws<OptionsValidationException>(() => ValidateAtStartup((key, value)));
         Assert.Contains(key.Split(':')[1], ex.Message);
+    }
+
+    [Fact]
+    public void RetryBaseDelayExceedingMaxDelay_FailsStartup()
+    {
+        var ex = Assert.Throws<OptionsValidationException>(() =>
+            ValidateAtStartup(("OpenDota:RetryBaseDelayMs", "5000"), ("OpenDota:RetryMaxDelayMs", "1000")));
+        Assert.Contains(nameof(OpenDotaOptions.RetryBaseDelayMs), ex.Message);
+        Assert.Contains(nameof(OpenDotaOptions.RetryMaxDelayMs), ex.Message);
     }
 
     [Fact]

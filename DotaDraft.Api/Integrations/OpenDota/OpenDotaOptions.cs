@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace DotaDraft.Api.Integrations.OpenDota;
 
-public class OpenDotaOptions
+public class OpenDotaOptions : IValidatableObject
 {
     public const string SectionName = "OpenDota";
 
@@ -26,4 +26,16 @@ public class OpenDotaOptions
     /// <summary>Upper bound for a single retry delay. A Retry-After longer than this is not retried.</summary>
     [Range(1, int.MaxValue)]
     public int RetryMaxDelayMs { get; set; } = 60000;
+
+    /// <summary>Per-attempt HTTP timeout in milliseconds.</summary>
+    [Range(1, int.MaxValue)]
+    public int AttemptTimeoutMs { get; set; } = 30_000;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (RetryBaseDelayMs > RetryMaxDelayMs)
+            yield return new ValidationResult(
+                $"{nameof(RetryBaseDelayMs)} ({RetryBaseDelayMs}) must not exceed {nameof(RetryMaxDelayMs)} ({RetryMaxDelayMs}).",
+                [nameof(RetryBaseDelayMs), nameof(RetryMaxDelayMs)]);
+    }
 }
