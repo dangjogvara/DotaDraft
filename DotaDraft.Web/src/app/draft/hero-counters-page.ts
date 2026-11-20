@@ -14,6 +14,7 @@ import {
   tap,
 } from 'rxjs';
 
+import { shownAdvantage } from './advantage';
 import { CounterList } from './counter-list';
 import { HeroApiService } from './hero-api.service';
 import { PrimaryAttr, filterHeroes, groupByAttribute, rolesOf } from './hero-search';
@@ -66,6 +67,8 @@ export class HeroCountersPage {
   protected readonly heroes = signal<LoadState<Hero[]>>({ status: 'loading' });
   protected readonly enemies = signal<Hero[]>([]);
   protected readonly allies = signal<Hero[]>([]);
+  protected readonly shownAdvantage = shownAdvantage;
+
   /** Which team a click on the grid adds to. */
   protected readonly addingTo = signal<Team>('enemy');
 

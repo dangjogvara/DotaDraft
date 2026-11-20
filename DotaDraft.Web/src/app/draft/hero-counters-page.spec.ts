@@ -714,6 +714,18 @@ describe('HeroCountersPage', () => {
       expect(total.classList).toContain('text-red-400');
     });
 
+    it.each([0.03, -0.03])('shows a near-zero total of %s as a neutral 0.0', async (total) => {
+      await draftWithBothTeams();
+      teamRequest([2], [1]).flush({ totalAdvantage: total, heroes: [{ ...axeScored, totalAdvantage: total }] });
+      render();
+
+      const value = el().querySelector('[data-testid="team-total"] span')!;
+      expect(value.textContent?.trim()).toBe('0.0');
+      expect(value.classList).toContain('text-slate-400');
+      expect(value.classList).not.toContain('text-emerald-400');
+      expect(value.classList).not.toContain('text-red-400');
+    });
+
     it('asks again when either team changes, dropping the outdated answer', async () => {
       await open();
       loadHeroes(lineupOfSix);

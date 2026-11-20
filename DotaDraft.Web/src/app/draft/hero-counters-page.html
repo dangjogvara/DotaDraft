@@ -60,7 +60,7 @@
               <div class="mb-3 flex items-baseline justify-between gap-3">
                 <h2 class="text-lg font-semibold">Your team's matchup</h2>
                 @if (matchup.status === 'loaded') {
-                  @let total = matchup.data.totalAdvantage;
+                  @let total = shownAdvantage(matchup.data.totalAdvantage);
                   <p class="shrink-0 text-right" data-testid="team-total">
                     <span
                       class="text-lg font-semibold tabular-nums"

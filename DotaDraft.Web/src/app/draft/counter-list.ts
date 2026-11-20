@@ -10,6 +10,7 @@ import {
   output,
 } from '@angular/core';
 
+import { shownAdvantage } from './advantage';
 import { EnemyMatchup, HeroScore, Hero } from './hero.models';
 
 /** Matchups with fewer games than this are flagged as less certain. */
@@ -41,6 +42,8 @@ export class CounterList {
     return this.enemies().get(id)?.localizedName ?? 'this hero';
   }
 
+  protected readonly shown = shownAdvantage;
+
   protected isFewGames(games: number): boolean {
     return games < FEW_GAMES;
   }
@@ -59,11 +62,12 @@ export class CounterList {
     if (single.winRate === null) {
       return `No matchup data against ${enemy}`;
     }
-    if (counter.totalAdvantage === 0) {
+    const total = shownAdvantage(counter.totalAdvantage);
+    if (total === 0) {
       return `${counter.localizedName} wins as often against ${enemy} as both heroes' usual win rates predict, adjusted for how many games there are`;
     }
-    const points = formatNumber(Math.abs(counter.totalAdvantage), this.locale, '1.1-1');
-    const direction = counter.totalAdvantage > 0 ? 'more' : 'less';
+    const points = formatNumber(Math.abs(total), this.locale, '1.1-1');
+    const direction = total > 0 ? 'more' : 'less';
     return `${counter.localizedName} wins ${points} percentage points ${direction} often against ${enemy} than both heroes' usual win rates predict, adjusted for how many games there are`;
   }
 
