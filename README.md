@@ -150,7 +150,9 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 | Setting | Default | Description |
 |---|---|---|
 | `ConnectionStrings:DefaultConnection` | none (required) | PostgreSQL connection string, kept in user-secrets (see [Local setup](#local-setup)) |
+| `OpenDota:BaseUrl` | `https://api.opendota.com/` | The OpenDota API's address, e.g. for a mirror or a local stub |
 | `OpenDota:ApiKey` | none | Optional OpenDota API key, sent as a bearer token |
+| `OpenDota:SteamCdnBaseUrl` | `https://cdn.cloudflare.steamstatic.com` | Host that OpenDota's hero image paths are joined to |
 | `OpenDota:MaxRetryAttempts` | `3` | Retries after a transient failure (429, 5xx, network) |
 | `OpenDota:RetryBaseDelayMs` | `5000` | First retry delay; doubles on each retry |
 | `OpenDota:RetryMaxDelayMs` | `60000` | Longest retry delay; a longer `Retry-After` is not retried |
