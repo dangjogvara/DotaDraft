@@ -13,7 +13,13 @@ export const TEAM_PARAM = 'team';
  */
 export function lineupFromParam(value: string | null, heroes: Hero[]): Hero[] {
   const byId = new Map(heroes.map((hero) => [hero.id, hero]));
-  const ids = new Set((value ?? '').split(',').map((part) => Number(part.trim())));
+  const ids = new Set(
+    (value ?? '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+      .map(Number),
+  );
   return [...ids]
     .map((id) => byId.get(id))
     .filter((hero) => hero !== undefined)

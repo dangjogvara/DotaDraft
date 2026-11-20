@@ -1,10 +1,9 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   Observable,
-  Subject,
   catchError,
   map,
   of,
@@ -59,18 +58,39 @@ export class HeroCountersPage {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly draftChanges = new Subject<Draft>();
-  /** The draft and role the counters are for; a new one replaces the request for the last. */
-  private readonly counterQueries = new Subject<{ draft: Draft; role: string | null }>();
 
   protected readonly heroes = signal<LoadState<Hero[]>>({ status: 'loading' });
   protected readonly enemies = signal<Hero[]>([]);
   protected readonly allies = signal<Hero[]>([]);
   /** Which team a click on the grid adds to. */
   protected readonly addingTo = signal<Team>('enemy');
-  protected readonly counters = signal<LoadState<HeroScore[]> | null>(null);
+
+  protected readonly query = signal('');
+  protected readonly attribute = signal<PrimaryAttr | null>(null);
+  /** Filters both the grid and the counter suggestions. */
+  protected readonly role = signal<string | null>(null);
+
+  private readonly draft = computed<Draft>(() => ({ enemies: this.enemies(), allies: this.allies() }));
+  private readonly counterQuery = computed(() => ({ draft: this.draft(), role: this.role() }));
+
+  // switchMap drops a slower response for an earlier draft or role when either changes again, and
+  // stops polling for the old one. Counters need at least one enemy
+  protected readonly counters = toSignal(
+    toObservable(this.counterQuery).pipe(
+      switchMap(({ draft, role }) => (draft.enemies.length === 0 ? of(null) : this.loadCounters(draft, role))),
+    ),
+    { initialValue: null },
+  );
+
   /** How your team does against the enemy; null until both teams have picks. */
-  protected readonly teamMatchup = signal<LoadState<TeamMatchup> | null>(null);
+  protected readonly teamMatchup = toSignal(
+    toObservable(this.draft).pipe(
+      switchMap((draft) =>
+        draft.enemies.length === 0 || draft.allies.length === 0 ? of(null) : this.loadTeamMatchup(draft),
+      ),
+    ),
+    { initialValue: null },
+  );
 
   protected readonly heroList = computed(() => loadedData(this.heroes()) ?? []);
   protected readonly counterList = computed(() => loadedData(this.counters()) ?? []);
@@ -80,10 +100,6 @@ export class HeroCountersPage {
     () => (this.addingTo() === 'enemy' ? this.enemies() : this.allies()).length >= MAX_LINEUP,
   );
 
-  protected readonly query = signal('');
-  protected readonly attribute = signal<PrimaryAttr | null>(null);
-  /** Filters both the grid and the counter suggestions. */
-  protected readonly role = signal<string | null>(null);
   protected readonly roles = computed(() => rolesOf(this.heroList()));
   protected readonly heroGroups = computed(() =>
     groupByAttribute(filterHeroes(this.heroList(), this.query(), this.attribute(), this.role())),
@@ -91,24 +107,6 @@ export class HeroCountersPage {
 
   constructor() {
     this.loadHeroes();
-
-    // switchMap drops a slower response for an earlier draft or role when either changes again, and
-    // stops polling for the old one. Counters need at least one enemy
-    this.counterQueries
-      .pipe(
-        switchMap(({ draft, role }) => (draft.enemies.length === 0 ? of(null) : this.loadCounters(draft, role))),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((state) => this.counters.set(state));
-
-    this.draftChanges
-      .pipe(
-        switchMap((draft) =>
-          draft.enemies.length === 0 || draft.allies.length === 0 ? of(null) : this.loadTeamMatchup(draft),
-        ),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((state) => this.teamMatchup.set(state));
   }
 
   protected loadHeroes(): void {
@@ -169,17 +167,9 @@ export class HeroCountersPage {
     );
   }
 
-  /** Changes the role filter, and asks for counters with that role. The team matchup doesn't depend on it. */
-  protected setRole(role: string | null): void {
-    this.role.set(role);
-    this.counterQueries.next({ draft: { enemies: this.enemies(), allies: this.allies() }, role });
-  }
-
   private setDraft(draft: Draft): void {
     this.enemies.set(draft.enemies);
     this.allies.set(draft.allies);
-    this.draftChanges.next(draft);
-    this.counterQueries.next({ draft, role: this.role() });
 
     // Keeps the draft in the URL, so a refresh or a shared link opens the same draft.
     // replaceUrl stops every pick from adding a browser history entry
