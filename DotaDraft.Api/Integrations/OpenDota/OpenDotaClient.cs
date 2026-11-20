@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Polly.Timeout;
 
 namespace DotaDraft.Api.Integrations.OpenDota;
 
@@ -95,9 +96,9 @@ public class OpenDotaClient(HttpClient httpClient) : IOpenDotaClient
         return body.Length > 200 ? body[..200] : body;
     }
 
-    // HTTP errors, malformed JSON and HttpClient timeouts are OpenDota's fault.
+    // HTTP errors, malformed JSON, and Polly/HTTP timeouts are OpenDota's fault.
     // Cancellation by the caller is not, and must propagate.
     private static bool IsUpstreamFailure(Exception ex, CancellationToken ct) =>
-        ex is HttpRequestException or JsonException
+        ex is HttpRequestException or JsonException or TimeoutRejectedException
         || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 }

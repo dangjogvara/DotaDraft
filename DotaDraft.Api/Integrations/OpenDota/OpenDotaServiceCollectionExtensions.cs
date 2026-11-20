@@ -13,6 +13,8 @@ public static class OpenDotaServiceCollectionExtensions
         {
             var options = sp.GetRequiredService<IOptions<OpenDotaOptions>>().Value;
             client.BaseAddress = new Uri(options.BaseUrl);
+            // Polly enforces the per-attempt timeout below, so HttpClient's 100s default doesn't cut off retries
+            client.Timeout = Timeout.InfiniteTimeSpan;
             client.DefaultRequestHeaders.Add("User-Agent", "DotaDraftApp/1.0");
 
             // Sent as a header rather than the api_key query parameter, so it stays out of logged request URLs
@@ -20,26 +22,31 @@ public static class OpenDotaServiceCollectionExtensions
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
         });
 
-        // Retry transient failures (429, 408, 5xx, network errors), honouring Retry-After when OpenDota sends it.
+        // Retry transient failures (429, 408, 5xx, network errors, timeouts), honouring Retry-After when OpenDota sends it.
         // OpenDota limits free use to 60 requests/minute, so the backoff has to be able to outlast a minute window.
         builder.AddResilienceHandler("opendota", (pipeline, context) =>
         {
             var options = context.ServiceProvider.GetRequiredService<IOptions<OpenDotaOptions>>().Value;
-            var maxDelay = TimeSpan.FromMilliseconds(options.RetryMaxDelayMs);
-            pipeline.AddRetry(new HttpRetryStrategyOptions
+            if (options.MaxRetryAttempts > 0)
             {
-                MaxRetryAttempts = options.MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                UseJitter = true,
-                Delay = TimeSpan.FromMilliseconds(options.RetryBaseDelayMs),
-                MaxDelay = maxDelay,
-                ShouldRetryAfterHeader = true,
-                // MaxDelay doesn't apply to Retry-After. A longer wait than that (e.g. daily quota used up)
-                // won't clear mid-run, so fail fast instead of stalling the seed
-                ShouldHandle = args => ValueTask.FromResult(
-                    HttpClientResiliencePredicates.IsTransient(args.Outcome)
-                    && !(GetRetryAfter(args.Outcome.Result) > maxDelay))
-            });
+                var maxDelay = TimeSpan.FromMilliseconds(options.RetryMaxDelayMs);
+                pipeline.AddRetry(new HttpRetryStrategyOptions
+                {
+                    MaxRetryAttempts = options.MaxRetryAttempts,
+                    BackoffType = DelayBackoffType.Exponential,
+                    UseJitter = true,
+                    Delay = TimeSpan.FromMilliseconds(options.RetryBaseDelayMs),
+                    MaxDelay = maxDelay,
+                    ShouldRetryAfterHeader = true,
+                    // MaxDelay doesn't apply to Retry-After. A longer wait than that (e.g. daily quota used up)
+                    // won't clear mid-run, so fail fast instead of stalling the seed
+                    ShouldHandle = args => ValueTask.FromResult(
+                        HttpClientResiliencePredicates.IsTransient(args.Outcome)
+                        && !(GetRetryAfter(args.Outcome.Result) > maxDelay))
+                });
+            }
+            // Inner to retry so each attempt gets its own timeout and timed-out attempts are retried
+            pipeline.AddTimeout(TimeSpan.FromMilliseconds(options.AttemptTimeoutMs));
         });
 
         return builder;

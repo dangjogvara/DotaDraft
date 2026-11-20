@@ -45,7 +45,9 @@ public class HeroIngestionService(
             hero.Roles = dto.Roles;
             // Prefix relative path ("/apps/dota2/images/...png?") with Steam's CDN host. OpenDota ends paths
             // with an empty query string; trimming only a trailing '?' keeps any real query intact
-            hero.ImgUrl = string.IsNullOrWhiteSpace(dto.Img) ? null : $"{_options.SteamCdnBaseUrl}{dto.Img.TrimEnd('?')}";
+            hero.ImgUrl = string.IsNullOrWhiteSpace(dto.Img)
+                ? null
+                : $"{_options.SteamCdnBaseUrl.TrimEnd('/')}/{dto.Img.TrimStart('/').TrimEnd('?')}";
         }
 
         int saved;
@@ -74,30 +76,30 @@ public class HeroIngestionService(
             throw new InvalidOperationException("The Heroes table is empty, so there are no heroes to seed matchups for.");
 
         var latestMatchId = await openDota.GetLatestPublicMatchIdAsync(ct);
-        var (totals, failedWindows) = await FetchTotalsAsync(latestMatchId, validHeroIds, ct);
+        var (totals, attemptedWindows, failedWindows) = await FetchTotalsAsync(latestMatchId, validHeroIds, ct);
 
-        var windowCount = _matchupOptions.WindowCount;
-        var succeededWindows = windowCount - failedWindows;
-        if (succeededWindows * 2 < windowCount || totals.Count == 0)
+        var succeededWindows = attemptedWindows - failedWindows;
+        if (succeededWindows * 2 < attemptedWindows || totals.Count == 0)
             throw new OpenDotaException(
-                $"Only {succeededWindows} of {windowCount} match windows could be fetched; existing matchups were kept.");
+                $"Only {succeededWindows} of {attemptedWindows} match windows could be fetched; existing matchups were kept.");
 
         var saved = await ReplaceMatchupsAsync(totals, ct);
         if (failedWindows > 0)
             logger.LogWarning("{Failed} of {WindowCount} match windows failed; matchups were saved from the other {Succeeded}.",
-                failedWindows, windowCount, succeededWindows);
+                failedWindows, attemptedWindows, succeededWindows);
 
         return saved;
     }
 
     // Fetches each window of match IDs, walking back from the newest match, and adds up games and wins per
     // hero pair. A failed window is logged and counted rather than fatal; the caller decides if enough worked
-    private async Task<(MatchupTotals Totals, int FailedWindows)> FetchTotalsAsync(
+    private async Task<(MatchupTotals Totals, int AttemptedWindows, int FailedWindows)> FetchTotalsAsync(
         long latestMatchId, HashSet<int> validHeroIds, CancellationToken ct)
     {
         var windowSize = _matchupOptions.WindowSize;
         var windowCount = _matchupOptions.WindowCount;
         var totals = new MatchupTotals();
+        var attemptedWindows = 0;
         var failedWindows = 0;
 
         logger.LogInformation(
@@ -107,7 +109,9 @@ public class HeroIngestionService(
         for (var i = 0; i < windowCount; i++)
         {
             var toMatchId = latestMatchId - (long)i * windowSize;
-            var fromMatchId = toMatchId - windowSize + 1;
+            if (toMatchId < 1) break;
+            var fromMatchId = Math.Max(1, toMatchId - windowSize + 1);
+            attemptedWindows++;
 
             IReadOnlyList<OpenDotaPublicMatchupDto> rows;
             try
@@ -132,7 +136,7 @@ public class HeroIngestionService(
             logger.LogInformation("Fetched window {Window}/{WindowCount} ({Rows} hero pairs).", i + 1, windowCount, rows.Count);
         }
 
-        return (totals, failedWindows);
+        return (totals, attemptedWindows, failedWindows);
     }
 
     // Replaces the table's contents in one save: updates or adds every pair seen, and removes pairs that

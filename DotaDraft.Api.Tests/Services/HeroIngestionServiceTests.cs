@@ -17,9 +17,10 @@ public class HeroIngestionServiceTests : IAsyncLifetime
 
     public Task DisposeAsync() => _db.DisposeAsync().AsTask();
 
-    private HeroIngestionService CreateService(int windowCount = 3, int? minAvgRankTier = null) =>
+    private HeroIngestionService CreateService(
+        int windowCount = 3, int? minAvgRankTier = null, string steamCdnBaseUrl = "https://cdn.test") =>
         new(_client, _db, NullLogger<HeroIngestionService>.Instance,
-            Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = "https://cdn.test" }),
+            Options.Create(new OpenDotaOptions { SteamCdnBaseUrl = steamCdnBaseUrl }),
             Options.Create(new MatchupOptions { WindowSize = 100, WindowCount = windowCount, MinAvgRankTier = minAvgRankTier }));
 
     private static OpenDotaHeroDto HeroDto(int id, string? img = null) =>
@@ -47,6 +48,16 @@ public class HeroIngestionServiceTests : IAsyncLifetime
         var heroes = await _db.Heroes.OrderBy(h => h.Id).ToListAsync();
         Assert.Equal("https://cdn.test/apps/dota2/images/1.png", heroes[0].ImgUrl);
         Assert.Null(heroes[1].ImgUrl);
+    }
+
+    [Fact]
+    public async Task SeedHeroes_NormalizesTrailingSlashOnSteamCdnBaseUrl()
+    {
+        _client.Heroes.Add(HeroDto(1, "/apps/dota2/images/1.png?"));
+
+        await CreateService(steamCdnBaseUrl: "https://cdn.test/").SeedHeroesAsync();
+
+        Assert.Equal("https://cdn.test/apps/dota2/images/1.png", (await _db.Heroes.SingleAsync()).ImgUrl);
     }
 
     [Fact]
@@ -132,6 +143,22 @@ public class HeroIngestionServiceTests : IAsyncLifetime
         Assert.Equal(110, matchup.Wins);
         Assert.Equal(55.00m, matchup.WinRate);
         Assert.Equal(2, await _db.HeroMatchups.CountAsync());
+    }
+
+    [Fact]
+    public async Task SeedMatchups_ClampsWindowStartToOne_AndStopsBeforeZero()
+    {
+        AddHeroes(1, 2);
+        _client.LatestPublicMatchId = 150;
+        _client.PublicMatchups[150] = [Pair(1, 2, 10, 6)];
+        _client.PublicMatchups[50] = [Pair(1, 2, 10, 4)];
+
+        await CreateService(windowCount: 3).SeedMatchupsAsync();
+
+        Assert.Equal([(51L, 150L, (int?)null), (1L, 50L, null)], _client.PublicMatchupRequests);
+        var matchup = await _db.HeroMatchups.SingleAsync();
+        Assert.Equal(20, matchup.GamesPlayed);
+        Assert.Equal(10, matchup.Wins);
     }
 
     [Fact]

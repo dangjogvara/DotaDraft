@@ -154,6 +154,7 @@ Settings come from `appsettings.json`, then `appsettings.Development.json`, then
 | `OpenDota:MaxRetryAttempts` | `3` | Retries after a transient failure (429, 5xx, network) |
 | `OpenDota:RetryBaseDelayMs` | `5000` | First retry delay; doubles on each retry |
 | `OpenDota:RetryMaxDelayMs` | `60000` | Longest retry delay; a longer `Retry-After` is not retried |
+| `OpenDota:AttemptTimeoutMs` | `30000` | Per-attempt HTTP timeout in milliseconds |
 | `Matchups:WindowSize` | `200000` | Match IDs per explorer query; much larger windows hit the explorer's timeout |
 | `Matchups:WindowCount` | `15` | Windows per seed, walking back from the newest match |
 | `Matchups:MinAvgRankTier` | none | Only count matches with at least this average rank (10–15 Herald … 80 Immortal); unset includes all ranks |

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using DotaDraft.Api.Integrations.OpenDota;
 using Microsoft.Extensions.DependencyInjection;
+using Polly.Timeout;
 
 namespace DotaDraft.Api.Tests.Integrations;
 
@@ -13,7 +14,8 @@ public class OpenDotaClientTests
     private readonly StubHandler _handler = new();
 
     // Uses the production registration so the retry pipeline under test is the real one
-    private IOpenDotaClient CreateClient(int maxRetryAttempts = 3, int retryMaxDelayMs = 60000, string? apiKey = null) =>
+    private IOpenDotaClient CreateClient(
+        int maxRetryAttempts = 3, int retryMaxDelayMs = 60000, string? apiKey = null, int attemptTimeoutMs = 30_000) =>
         new ServiceCollection()
             .AddLogging()
             .Configure<OpenDotaOptions>(o =>
@@ -23,6 +25,7 @@ public class OpenDotaClientTests
                 o.RetryBaseDelayMs = 1;
                 o.RetryMaxDelayMs = retryMaxDelayMs;
                 o.ApiKey = apiKey;
+                o.AttemptTimeoutMs = attemptTimeoutMs;
             })
             .AddOpenDotaClient()
             .ConfigurePrimaryHttpMessageHandler(() => _handler)
@@ -189,9 +192,69 @@ public class OpenDotaClientTests
         await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient().GetLatestPublicMatchIdAsync());
     }
 
+    [Fact]
+    public async Task RetriesOnAttemptTimeout_ThenReturnsData()
+    {
+        _handler.Handlers.Enqueue(async ct =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            return Json(HeroesJson);
+        });
+        _handler.Responses.Enqueue(Json(HeroesJson));
+
+        var heroes = await CreateClient(attemptTimeoutMs: 50).GetHeroStatsAsync();
+
+        Assert.Equal(2, _handler.Requests);
+        Assert.Equal(2, Assert.Single(heroes).Id);
+    }
+
+    [Fact]
+    public async Task ThrowsOpenDotaException_WhenAttemptTimeoutsExhaustRetries()
+    {
+        for (var i = 0; i < 2; i++)
+        {
+            _handler.Handlers.Enqueue(async ct =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                return Json(HeroesJson);
+            });
+        }
+
+        var ex = await Assert.ThrowsAsync<OpenDotaException>(
+            () => CreateClient(maxRetryAttempts: 1, attemptTimeoutMs: 50).GetHeroStatsAsync());
+        Assert.IsType<TimeoutRejectedException>(ex.InnerException);
+        Assert.Equal(2, _handler.Requests);
+    }
+
+    [Fact]
+    public async Task PropagatesCallerCancellation_InsteadOfWrappingInOpenDotaException()
+    {
+        using var cts = new CancellationTokenSource();
+        _handler.Handlers.Enqueue(async ct =>
+        {
+            cts.Cancel();
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            return Json(HeroesJson);
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => CreateClient(attemptTimeoutMs: 5000).GetHeroStatsAsync(cts.Token));
+        Assert.Equal(1, _handler.Requests);
+    }
+
+    [Fact]
+    public async Task DoesNotRetry_WhenMaxRetryAttemptsIsZero()
+    {
+        _handler.Responses.Enqueue(TooManyRequests());
+
+        await Assert.ThrowsAsync<OpenDotaException>(() => CreateClient(maxRetryAttempts: 0).GetHeroStatsAsync());
+        Assert.Equal(1, _handler.Requests);
+    }
+
     private class StubHandler : HttpMessageHandler
     {
         public Queue<HttpResponseMessage> Responses { get; } = new();
+        public Queue<Func<CancellationToken, Task<HttpResponseMessage>>> Handlers { get; } = new();
         public int Requests { get; private set; }
         public HttpRequestMessage? LastRequest { get; private set; }
 
@@ -199,7 +262,7 @@ public class OpenDotaClientTests
         {
             Requests++;
             LastRequest = request;
-            return Task.FromResult(Responses.Dequeue());
+            return Handlers.Count > 0 ? Handlers.Dequeue()(ct) : Task.FromResult(Responses.Dequeue());
         }
     }
 }
