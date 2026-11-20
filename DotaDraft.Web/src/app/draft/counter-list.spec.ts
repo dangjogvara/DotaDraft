@@ -157,6 +157,75 @@ describe('CounterList', () => {
     ]);
   });
 
+  describe('near-zero advantages', () => {
+    // Advantages are shown with one decimal; sign, colour and wording must follow the number shown
+    const single = (advantage: number) =>
+      counter({
+        totalAdvantage: advantage,
+        matchups: [{ enemyId: 1, advantage, winRate: 50, expectedWinRate: 50, gamesPlayed: 500 }],
+      });
+    const valueEl = () => (fixture.nativeElement as HTMLElement).querySelector('[data-testid="advantage-value"]')!;
+    const title = () =>
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="advantage"]')!.getAttribute('title');
+
+    it.each([0.03, -0.03, 0.049, -0.049])('shows %s as a neutral 0.0, as expected', (advantage) => {
+      render([single(advantage)]);
+
+      expect(valueEl().textContent?.trim()).toBe('0.0');
+      expect(valueEl().classList).toContain('text-slate-400');
+      expect(valueEl().classList).not.toContain('text-emerald-400');
+      expect(valueEl().classList).not.toContain('text-red-400');
+      expect(text('[data-testid="advantage-label"]')).toEqual(['as expected']);
+      expect(title()).toBe(
+        "Weaver wins as often against Anti-Mage as both heroes' usual win rates predict, adjusted for how many games there are",
+      );
+    });
+
+    it('shows 0.05 as +0.1, better than expected', () => {
+      render([single(0.05)]);
+
+      expect(valueEl().textContent?.trim()).toBe('+0.1');
+      expect(valueEl().classList).toContain('text-emerald-400');
+      expect(text('[data-testid="advantage-label"]')).toEqual(['better than expected']);
+      expect(title()).toContain('wins 0.1 percentage points more often');
+    });
+
+    it('shows -0.05 as -0.1, worse than expected', () => {
+      render([single(-0.05)]);
+
+      expect(valueEl().textContent?.trim()).toBe('-0.1');
+      expect(valueEl().classList).toContain('text-red-400');
+      expect(text('[data-testid="advantage-label"]')).toEqual(['worse than expected']);
+      expect(title()).toContain('wins 0.1 percentage points less often');
+    });
+
+    it('shows near-zero breakdown chips as a neutral 0.0', () => {
+      render(
+        [
+          counter({
+            totalAdvantage: 0.08,
+            matchups: [
+              { enemyId: 1, advantage: 0.03, winRate: 50, expectedWinRate: 50, gamesPlayed: 500 },
+              { enemyId: 2, advantage: -0.03, winRate: 50, expectedWinRate: 50, gamesPlayed: 500 },
+              { enemyId: 3, advantage: 0.08, winRate: 50, expectedWinRate: 50, gamesPlayed: 500 },
+            ],
+          }),
+        ],
+        [enemy(1, 'Anti-Mage'), enemy(2, 'Axe'), enemy(3, 'Lion')],
+      );
+
+      const chips = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="breakdown-advantage"]'),
+      ];
+      expect(chips.map((c) => c.textContent?.trim())).toEqual(['0.0', '0.0', '+0.1']);
+      expect(chips.map((c) => c.className.match(/text-(emerald|red|slate)-400/)?.[0])).toEqual([
+        'text-slate-400',
+        'text-slate-400',
+        'text-emerald-400',
+      ]);
+    });
+  });
+
   it('keeps the API order', () => {
     const rows = render([counter({ id: 1, localizedName: 'First' }), counter({ id: 2, localizedName: 'Second' })]);
 

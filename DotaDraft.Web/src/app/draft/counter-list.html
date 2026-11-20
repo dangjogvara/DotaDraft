@@ -1,6 +1,7 @@
 <ol class="space-y-2">
   @for (counter of counters(); track counter.id) {
     @let single = counter.matchups.length === 1 ? counter.matchups[0] : null;
+    @let total = shown(counter.totalAdvantage);
     <li class="rounded-md bg-slate-800 p-2" data-testid="counter">
       <div class="flex items-center gap-3">
         @if (counter.imgUrl) {
@@ -30,14 +31,14 @@
           <p
             class="text-lg leading-tight font-semibold tabular-nums"
             data-testid="advantage-value"
-            [class.text-emerald-400]="counter.totalAdvantage > 0"
-            [class.text-red-400]="counter.totalAdvantage < 0"
-            [class.text-slate-400]="counter.totalAdvantage === 0"
+            [class.text-emerald-400]="total > 0"
+            [class.text-red-400]="total < 0"
+            [class.text-slate-400]="total === 0"
           >
-            {{ counter.totalAdvantage > 0 ? '+' : '' }}{{ counter.totalAdvantage | number: '1.1-1' }}
+            {{ total > 0 ? '+' : '' }}{{ total | number: '1.1-1' }}
           </p>
           <p class="text-[10px] text-slate-500" data-testid="advantage-label">
-            {{ single ? advantageLabel(counter.totalAdvantage) : 'combined edge' }}
+            {{ single ? advantageLabel(total) : 'combined edge' }}
           </p>
           @if (pickable()) {
             <button
@@ -67,13 +68,14 @@
               @if (m.winRate === null) {
                 <span class="text-slate-500">no data</span>
               } @else {
+                @let advantage = shown(m.advantage);
                 <span
                   data-testid="breakdown-advantage"
-                  [class.text-emerald-400]="m.advantage > 0"
-                  [class.text-red-400]="m.advantage < 0"
-                  [class.text-slate-400]="m.advantage === 0"
+                  [class.text-emerald-400]="advantage > 0"
+                  [class.text-red-400]="advantage < 0"
+                  [class.text-slate-400]="advantage === 0"
                 >
-                  {{ m.advantage > 0 ? '+' : '' }}{{ m.advantage | number: '1.1-1' }}
+                  {{ advantage > 0 ? '+' : '' }}{{ advantage | number: '1.1-1' }}
                 </span>
                 <span [class.text-amber-400]="isFewGames(m.gamesPlayed)" [class.text-slate-500]="!isFewGames(m.gamesPlayed)">
                   ({{ isFewGames(m.gamesPlayed) ? 'only ' : '' }}{{ m.gamesPlayed | number }} games)
