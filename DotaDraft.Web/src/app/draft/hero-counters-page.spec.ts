@@ -6,7 +6,7 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
 import { environment } from '../../environments/environment';
-import { HeroCountersPage, SEED_POLL_MS } from './hero-counters-page';
+import { HeroCountersPage, MAX_SEED_POLLS, SEED_POLL_MS } from './hero-counters-page';
 import { HeroScore, Hero } from './hero.models';
 
 const heroesUrl = `${environment.apiBaseUrl}/api/heroes`;
@@ -829,6 +829,77 @@ describe('HeroCountersPage', () => {
       waitPoll();
 
       http.expectNone(heroesUrl);
+    });
+
+    it('does not poll when a role filter has no counters', async () => {
+      const support = hero(5, 'Crystal Maiden', 'int', ['Support']);
+      await open();
+      useFakeTimers();
+      loadHeroes([antiMage, support]);
+
+      [...el().querySelectorAll<HTMLButtonElement>('[aria-label="Filter by role"] button')]
+        .find((b) => b.textContent?.trim() === 'Support')!
+        .click();
+      render();
+      pick('Crystal Maiden');
+      countersRequest([5]).flush([]);
+      render();
+
+      waitPoll();
+      http.expectNone((r) => r.url === draftCountersUrl);
+    });
+
+    it('stops polling after MAX_SEED_POLLS empty counter responses', async () => {
+      await open();
+      useFakeTimers();
+      loadHeroes();
+      pick('Anti-Mage');
+      countersRequest([1]).flush([]);
+
+      for (let i = 0; i < MAX_SEED_POLLS; i++) {
+        waitPoll();
+        countersRequest([1]).flush([]);
+      }
+
+      waitPoll();
+      http.expectNone((r) => r.url === draftCountersUrl);
+    });
+
+    it("refreshes your team's matchup once counters arrive after seeding", async () => {
+      const axeEmpty: HeroScore = {
+        id: 2,
+        localizedName: 'Axe',
+        primaryAttr: 'str',
+        imgUrl: null,
+        totalAdvantage: 0,
+        baselineWinRate: 50,
+        matchups: [{ enemyId: 1, advantage: 0, winRate: null, expectedWinRate: null, gamesPlayed: 0 }],
+      };
+      const axeScored: HeroScore = {
+        ...axeEmpty,
+        totalAdvantage: 4.52,
+        baselineWinRate: 50.1,
+        matchups: [{ enemyId: 1, advantage: 4.52, winRate: 55.3, expectedWinRate: 50.1, gamesPlayed: 1200 }],
+      };
+
+      await open('/?against=1&team=2');
+      useFakeTimers();
+      loadHeroes();
+      countersRequest([1], [2]).flush([]);
+      teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [axeEmpty] });
+      render();
+      expect(text('[data-testid="team-total"]')).toBe('0.0 combined edge');
+
+      waitPoll();
+      countersRequest([1], [2]).flush([weaver]);
+      render();
+
+      teamRequest([2], [1]).flush({ totalAdvantage: 4.52, heroes: [axeScored] });
+      render();
+      expect(text('[data-testid="team-total"]')).toBe('+4.5 combined edge');
+
+      waitPoll();
+      http.expectNone(() => true);
     });
   });
 });
