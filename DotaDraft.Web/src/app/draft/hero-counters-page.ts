@@ -11,6 +11,7 @@ import {
   startWith,
   switchMap,
   takeWhile,
+  tap,
 } from 'rxjs';
 
 import { CounterList } from './counter-list';
@@ -32,10 +33,13 @@ type LoadState<T> = { status: 'loading' } | { status: 'loaded'; data: T } | { st
  */
 export const SEED_POLL_MS = 15_000;
 
-/** Repeats a request every SEED_POLL_MS while it returns an empty list, and stops at the first non-empty one. */
+/** Stops polling after this many retries (5 minutes) so a permanently empty result doesn't poll forever. */
+export const MAX_SEED_POLLS = 20;
+
+/** Repeats a request every SEED_POLL_MS while it returns an empty list, up to MAX_SEED_POLLS retries. */
 const pollWhileEmpty = <T>(request: Observable<T[]>): Observable<T[]> =>
   request.pipe(
-    repeat({ delay: SEED_POLL_MS }),
+    repeat({ count: MAX_SEED_POLLS + 1, delay: SEED_POLL_MS }),
     takeWhile((items) => items.length === 0, true),
   );
 
@@ -70,8 +74,12 @@ export class HeroCountersPage {
   /** Filters both the grid and the counter suggestions. */
   protected readonly role = signal<string | null>(null);
 
+  /** Incremented when polled counters transition from empty to non-empty, so team matchup refreshes after seeding. */
+  private readonly matchupRefresh = signal(0);
+
   private readonly draft = computed<Draft>(() => ({ enemies: this.enemies(), allies: this.allies() }));
   private readonly counterQuery = computed(() => ({ draft: this.draft(), role: this.role() }));
+  private readonly teamQuery = computed(() => ({ draft: this.draft(), refresh: this.matchupRefresh() }));
 
   // switchMap drops a slower response for an earlier draft or role when either changes again, and
   // stops polling for the old one. Counters need at least one enemy
@@ -84,8 +92,8 @@ export class HeroCountersPage {
 
   /** How your team does against the enemy; null until both teams have picks. */
   protected readonly teamMatchup = toSignal(
-    toObservable(this.draft).pipe(
-      switchMap((draft) =>
+    toObservable(this.teamQuery).pipe(
+      switchMap(({ draft }) =>
         draft.enemies.length === 0 || draft.allies.length === 0 ? of(null) : this.loadTeamMatchup(draft),
       ),
     ),
@@ -207,7 +215,19 @@ export class HeroCountersPage {
   }
 
   private loadCounters({ enemies, allies }: Draft, role: string | null): Observable<LoadState<HeroScore[]>> {
-    return pollWhileEmpty(this.heroApi.getDraftCounters(ids(enemies), ids(allies), role)).pipe(
+    const request = this.heroApi.getDraftCounters(ids(enemies), ids(allies), role);
+    let sawEmpty = false;
+    // Only poll unfiltered counters: a role filter with no results is usually legitimate, not seeding
+    const stream =
+      role === null
+        ? pollWhileEmpty(request).pipe(
+            tap((data) => {
+              if (data.length === 0) sawEmpty = true;
+              else if (sawEmpty) this.matchupRefresh.update((n) => n + 1);
+            }),
+          )
+        : request;
+    return stream.pipe(
       map((data): LoadState<HeroScore[]> => ({ status: 'loaded', data })),
       catchError(() => of<LoadState<HeroScore[]>>({ status: 'error' })),
       startWith<LoadState<HeroScore[]>>({ status: 'loading' }),
