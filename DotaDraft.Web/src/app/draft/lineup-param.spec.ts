@@ -27,6 +27,12 @@ describe('lineupFromParam', () => {
     expect(ids(lineupFromParam('1,99,abc,,2,1, 3', heroes))).toEqual([1, 2, 3]);
   });
 
+  it('ignores empty segments even if a hero has ID 0', () => {
+    const withZero = [hero(0), ...heroes];
+    expect(ids(lineupFromParam('', withZero))).toEqual([]);
+    expect(ids(lineupFromParam('1, ,2,', withZero))).toEqual([1, 2]);
+  });
+
   it('keeps only the first five heroes', () => {
     expect(ids(lineupFromParam('6,5,4,3,2,1', heroes))).toEqual([6, 5, 4, 3, 2]);
   });

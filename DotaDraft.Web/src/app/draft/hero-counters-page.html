@@ -135,8 +135,7 @@
             [(query)]="query"
             [(attribute)]="attribute"
             [roles]="roles()"
-            [role]="role()"
-            (roleChange)="setRole($event)"
+            [(role)]="role"
           />
 
           @for (group of heroGroups(); track group.attribute) {
