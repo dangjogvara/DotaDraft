@@ -29,6 +29,7 @@ public class OpenApiDocumentTests : IAsyncLifetime
         { "/api/heroes", "get", "GetHeroes", "Heroes" },
         { "/api/counters", "get", "GetDraftCounters", "Counters" },
         { "/api/team-matchup", "get", "GetTeamMatchup", "Counters" },
+        { "/api/status", "get", "GetStatus", "Status" },
     };
 
     [Theory]

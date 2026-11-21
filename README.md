@@ -102,6 +102,7 @@ The full API reference, with every parameter, response and schema, is the OpenAP
 | `GET` | `/api/heroes` | All heroes, sorted by name |
 | `GET` | `/api/counters?against=1&against=14&exclude=5&role=Support&limit=10` | Top counter-picks against an enemy lineup of 1–5 heroes, leaving out up to 5 `exclude`d heroes such as your own team's picks, optionally only heroes with a `role` (`limit` 1–20) |
 | `GET` | `/api/team-matchup?team=82&team=26&against=1&against=14` | How each of your team's 1–5 heroes does against the enemy lineup, scored like a counter suggestion, plus the team's combined edge |
+| `GET` | `/api/status` | `matchupsSeededAt`: when the matchups were last seeded, or `null` until the first seed finishes. The web app waits for it before asking for counters |
 | `GET` | `/health` | `Healthy` (200) when the API can reach the database, otherwise `Unhealthy` (503) |
 
 `/health` is meant for uptime monitors and hosting platforms. It answers in plain text, isn't listed in the OpenAPI document, and is the same in every environment.

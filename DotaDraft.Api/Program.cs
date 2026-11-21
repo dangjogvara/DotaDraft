@@ -65,6 +65,7 @@ app.UseCors(AngularClientCorsPolicy);
 
 app.RegisterHeroEndpoints();
 app.RegisterDraftEndpoints();
+app.RegisterStatusEndpoints();
 
 app.MapHealthChecks("/health");
 

@@ -2,17 +2,7 @@ import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import {
-  Observable,
-  catchError,
-  map,
-  of,
-  repeat,
-  startWith,
-  switchMap,
-  takeWhile,
-  tap,
-} from 'rxjs';
+import { Observable, catchError, map, of, repeat, startWith, switchMap, takeWhile } from 'rxjs';
 
 import { shownAdvantage } from './advantage';
 import { CounterList } from './counter-list';
@@ -28,20 +18,23 @@ import { TeamToggle } from './team-toggle';
 
 type LoadState<T> = { status: 'loading' } | { status: 'loaded'; data: T } | { status: 'error' };
 
+/** Counters can also wait for the API's first seed, as there's nothing to rank before it. */
+type CounterState = LoadState<HeroScore[]> | { status: 'seeding' };
+
 /**
  * How often to ask again while the API has no data yet. On a fresh database it seeds in the
- * background for about 1.5 minutes after starting, so an empty answer usually means "not yet".
+ * background for about 1.5 minutes after starting.
  */
 export const SEED_POLL_MS = 15_000;
 
-/** Stops polling after this many retries (5 minutes) so a permanently empty result doesn't poll forever. */
+/** Stops asking after this many retries (5 minutes), so a seed that keeps failing isn't polled forever. */
 export const MAX_SEED_POLLS = 20;
 
-/** Repeats a request every SEED_POLL_MS while it returns an empty list, up to MAX_SEED_POLLS retries. */
-const pollWhileEmpty = <T>(request: Observable<T[]>): Observable<T[]> =>
+/** Repeats a request every SEED_POLL_MS until `done` says its answer is final, up to MAX_SEED_POLLS retries. */
+const pollUntil = <T>(request: Observable<T>, done: (answer: T) => boolean): Observable<T> =>
   request.pipe(
     repeat({ count: MAX_SEED_POLLS + 1, delay: SEED_POLL_MS }),
-    takeWhile((items) => items.length === 0, true),
+    takeWhile((answer) => !done(answer), true),
   );
 
 /** Both sides of the draft: the enemy lineup to counter, and your own team's picks. */
@@ -49,7 +42,7 @@ type Draft = { enemies: Hero[]; allies: Hero[] };
 
 const ids = (heroes: Hero[]) => heroes.map((hero) => hero.id);
 
-const loadedData = <T>(state: LoadState<T> | null): T | undefined =>
+const loadedData = <T>(state: LoadState<T> | { status: 'seeding' } | null): T | undefined =>
   state?.status === 'loaded' ? state.data : undefined;
 
 @Component({
@@ -77,27 +70,32 @@ export class HeroCountersPage {
   /** Filters both the grid and the counter suggestions. */
   protected readonly role = signal<string | null>(null);
 
-  /** Incremented when polled counters transition from empty to non-empty, so team matchup refreshes after seeding. */
-  private readonly matchupRefresh = signal(0);
+  /** Whether the API has seeded its matchups; null until it has said. Counters wait for it. */
+  private readonly seeded = signal<boolean | null>(null);
 
   private readonly draft = computed<Draft>(() => ({ enemies: this.enemies(), allies: this.allies() }));
-  private readonly counterQuery = computed(() => ({ draft: this.draft(), role: this.role() }));
-  private readonly teamQuery = computed(() => ({ draft: this.draft(), refresh: this.matchupRefresh() }));
+  private readonly counterQuery = computed(() => ({ draft: this.draft(), role: this.role(), seeded: this.seeded() }));
+  private readonly teamQuery = computed(() => ({ draft: this.draft(), seeded: this.seeded() }));
 
-  // switchMap drops a slower response for an earlier draft or role when either changes again, and
-  // stops polling for the old one. Counters need at least one enemy
+  // switchMap drops a slower response for an earlier draft or role when either changes again. Both queries run
+  // again once seeding finishes, so counters appear without a refresh
   protected readonly counters = toSignal(
     toObservable(this.counterQuery).pipe(
-      switchMap(({ draft, role }) => (draft.enemies.length === 0 ? of(null) : this.loadCounters(draft, role))),
+      switchMap(({ draft, role, seeded }): Observable<CounterState | null> => {
+        if (draft.enemies.length === 0) return of(null);
+        if (seeded === null) return of({ status: 'loading' });
+        if (!seeded) return of({ status: 'seeding' });
+        return this.loadCounters(draft, role);
+      }),
     ),
     { initialValue: null },
   );
 
-  /** How your team does against the enemy; null until both teams have picks. */
+  /** How your team does against the enemy; null until both teams have picks and the data is seeded. */
   protected readonly teamMatchup = toSignal(
     toObservable(this.teamQuery).pipe(
-      switchMap(({ draft }) =>
-        draft.enemies.length === 0 || draft.allies.length === 0 ? of(null) : this.loadTeamMatchup(draft),
+      switchMap(({ draft, seeded }) =>
+        draft.enemies.length === 0 || draft.allies.length === 0 || !seeded ? of(null) : this.loadTeamMatchup(draft),
       ),
     ),
     { initialValue: null },
@@ -118,11 +116,12 @@ export class HeroCountersPage {
 
   constructor() {
     this.loadHeroes();
+    this.watchSeeding();
   }
 
   protected loadHeroes(): void {
     this.heroes.set({ status: 'loading' });
-    pollWhileEmpty(this.heroApi.getHeroes())
+    pollUntil(this.heroApi.getHeroes(), (heroes) => heroes.length > 0)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (data) => {
@@ -130,6 +129,16 @@ export class HeroCountersPage {
           if (data.length > 0) this.restoreDraft(data);
         },
         error: () => this.heroes.set({ status: 'error' }),
+      });
+  }
+
+  private watchSeeding(): void {
+    pollUntil(this.heroApi.getStatus(), (status) => status.matchupsSeededAt !== null)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (status) => this.seeded.set(status.matchupsSeededAt !== null),
+        // Without a status, ask for counters anyway rather than waiting for one that may never come
+        error: () => this.seeded.set(true),
       });
   }
 
@@ -216,19 +225,7 @@ export class HeroCountersPage {
   }
 
   private loadCounters({ enemies, allies }: Draft, role: string | null): Observable<LoadState<HeroScore[]>> {
-    const request = this.heroApi.getDraftCounters(ids(enemies), ids(allies), role);
-    let sawEmpty = false;
-    // Only poll unfiltered counters: a role filter with no results is usually legitimate, not seeding
-    const stream =
-      role === null
-        ? pollWhileEmpty(request).pipe(
-            tap((data) => {
-              if (data.length === 0) sawEmpty = true;
-              else if (sawEmpty) this.matchupRefresh.update((n) => n + 1);
-            }),
-          )
-        : request;
-    return stream.pipe(
+    return this.heroApi.getDraftCounters(ids(enemies), ids(allies), role).pipe(
       map((data): LoadState<HeroScore[]> => ({ status: 'loaded', data })),
       catchError(() => of<LoadState<HeroScore[]>>({ status: 'error' })),
       startWith<LoadState<HeroScore[]>>({ status: 'loading' }),

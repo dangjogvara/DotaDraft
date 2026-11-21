@@ -7,11 +7,15 @@ import { RouterTestingHarness } from '@angular/router/testing';
 
 import { environment } from '../../environments/environment';
 import { HeroCountersPage, MAX_SEED_POLLS, SEED_POLL_MS } from './hero-counters-page';
-import { HeroScore, Hero } from './hero.models';
+import { ApiStatus, HeroScore, Hero } from './hero.models';
 
 const heroesUrl = `${environment.apiBaseUrl}/api/heroes`;
 const draftCountersUrl = `${environment.apiBaseUrl}/api/counters`;
 const teamMatchupUrl = `${environment.apiBaseUrl}/api/team-matchup`;
+const statusUrl = `${environment.apiBaseUrl}/api/status`;
+
+const seeded: ApiStatus = { matchupsSeededAt: '2026-11-20T21:17:30+00:00' };
+const notSeeded: ApiStatus = { matchupsSeededAt: null };
 
 const hero = (id: number, localizedName: string, primaryAttr = 'agi', roles: string[] = []): Hero => ({
   id,
@@ -40,10 +44,14 @@ describe('HeroCountersPage', () => {
   let harness: RouterTestingHarness;
   let http: HttpTestingController;
 
-  // Opens the page through the router, as the app does, so it can read and update the URL
-  async function open(url = '/') {
+  const statusRequest = () => http.expectOne(statusUrl);
+
+  // Opens the page through the router, as the app does, so it can read and update the URL. The API answers the
+  // status request with `status`; pass null to answer it in the test
+  async function open(url = '/', status: ApiStatus | null = seeded) {
     harness = await RouterTestingHarness.create();
     await harness.navigateByUrl(url, HeroCountersPage);
+    if (status) statusRequest().flush(status);
   }
 
   beforeEach(() => {
@@ -261,7 +269,7 @@ describe('HeroCountersPage', () => {
     render();
 
     expect(first.cancelled).toBe(true);
-    expect(text('[data-testid="counters-empty"]')).toContain('No matchup data');
+    expect(text('[data-testid="counters-empty"]')).toContain('No heroes have matchup data');
     expect(text('[data-testid="counters-empty"]')).not.toMatch(/seed/i);
   });
 
@@ -799,119 +807,108 @@ describe('HeroCountersPage', () => {
       countersRequest([1]).flush([weaver]);
     });
 
-    it('asks for counters again until there are some, without flashing a loading message', async () => {
-      await open();
+    it('says the matchup data is loading, then asks for counters once the first seed has finished', async () => {
+      await open('/', null);
       useFakeTimers();
+      statusRequest().flush(notSeeded);
       loadHeroes();
       pick('Anti-Mage');
-      countersRequest([1]).flush([]);
-      render();
+
+      http.expectNone((r) => r.url === draftCountersUrl);
+      expect(text('[data-testid="counters-seeding"]')).toContain('still loading matchup data');
 
       waitPoll();
+      statusRequest().flush(notSeeded);
+      http.expectNone((r) => r.url === draftCountersUrl);
+
+      waitPoll();
+      statusRequest().flush(seeded);
       render();
-      expect(text('[data-testid="counters-empty"]')).toContain('appear here by themselves');
       countersRequest([1]).flush([weaver]);
       render();
       expect(text('[data-testid="counters-panel"]')).toContain('Weaver');
 
       waitPoll();
-      http.expectNone((r) => r.url === draftCountersUrl);
+      http.expectNone(() => true);
     });
 
-    it('stops asking for an old lineup when the lineup changes', async () => {
+    it("asks for your team's matchup once the first seed has finished", async () => {
+      const axeScored: HeroScore = {
+        id: 2,
+        localizedName: 'Axe',
+        primaryAttr: 'str',
+        imgUrl: null,
+        totalAdvantage: 4.52,
+        baselineWinRate: 50.1,
+        matchups: [{ enemyId: 1, advantage: 4.52, winRate: 55.3, expectedWinRate: 50.1, gamesPlayed: 1200 }],
+      };
+
+      await open('/?against=1&team=2', null);
+      useFakeTimers();
+      statusRequest().flush(notSeeded);
+      loadHeroes();
+      http.expectNone((r) => r.url === teamMatchupUrl);
+      expect(el().querySelector('[data-testid="team-matchup"]')).toBeNull();
+
+      waitPoll();
+      statusRequest().flush(seeded);
+      render();
+      countersRequest([1], [2]).flush([weaver]);
+      teamRequest([2], [1]).flush({ totalAdvantage: 4.52, heroes: [axeScored] });
+      render();
+      expect(text('[data-testid="team-total"]')).toBe('+4.5 combined edge');
+    });
+
+    it('asks for counters once when there are none for a seeded lineup', async () => {
       await open();
       useFakeTimers();
       loadHeroes();
       pick('Anti-Mage');
       countersRequest([1]).flush([]);
+      render();
 
-      pick('Axe');
-      countersRequest([1, 2]).flush([weaver]);
+      expect(text('[data-testid="counters-empty"]')).toContain('No heroes have matchup data');
+      waitPoll();
+      http.expectNone(() => true);
+    });
+
+    it('stops asking for the status after MAX_SEED_POLLS retries', async () => {
+      await open('/', null);
+      useFakeTimers();
+      statusRequest().flush(notSeeded);
+      loadHeroes();
+
+      for (let i = 0; i < MAX_SEED_POLLS; i++) {
+        waitPoll();
+        statusRequest().flush(notSeeded);
+      }
 
       waitPoll();
-      http.expectNone((r) => r.url === draftCountersUrl);
+      http.expectNone(statusUrl);
+    });
+
+    it('asks for counters anyway when the status fails to load', async () => {
+      await open('/', null);
+      statusRequest().error(new ProgressEvent('error'));
+      loadHeroes();
+      pick('Anti-Mage');
+
+      countersRequest([1]).flush([weaver]);
+      render();
+      expect(text('[data-testid="counters-panel"]')).toContain('Weaver');
     });
 
     it('stops asking when the page is left', async () => {
-      await open();
+      await open('/', null);
       useFakeTimers();
+      statusRequest().flush(notSeeded);
       loadHeroes([]);
 
       harness.fixture.destroy();
       waitPoll();
 
       http.expectNone(heroesUrl);
-    });
-
-    it('does not poll when a role filter has no counters', async () => {
-      const support = hero(5, 'Crystal Maiden', 'int', ['Support']);
-      await open();
-      useFakeTimers();
-      loadHeroes([antiMage, support]);
-
-      [...el().querySelectorAll<HTMLButtonElement>('[aria-label="Filter by role"] button')]
-        .find((b) => b.textContent?.trim() === 'Support')!
-        .click();
-      render();
-      pick('Crystal Maiden');
-      countersRequest([5]).flush([]);
-      render();
-
-      waitPoll();
-      http.expectNone((r) => r.url === draftCountersUrl);
-    });
-
-    it('stops polling after MAX_SEED_POLLS empty counter responses', async () => {
-      await open();
-      useFakeTimers();
-      loadHeroes();
-      pick('Anti-Mage');
-      countersRequest([1]).flush([]);
-
-      for (let i = 0; i < MAX_SEED_POLLS; i++) {
-        waitPoll();
-        countersRequest([1]).flush([]);
-      }
-
-      waitPoll();
-      http.expectNone((r) => r.url === draftCountersUrl);
-    });
-
-    it("refreshes your team's matchup once counters arrive after seeding", async () => {
-      const axeEmpty: HeroScore = {
-        id: 2,
-        localizedName: 'Axe',
-        primaryAttr: 'str',
-        imgUrl: null,
-        totalAdvantage: 0,
-        baselineWinRate: 50,
-        matchups: [{ enemyId: 1, advantage: 0, winRate: null, expectedWinRate: null, gamesPlayed: 0 }],
-      };
-      const axeScored: HeroScore = {
-        ...axeEmpty,
-        totalAdvantage: 4.52,
-        baselineWinRate: 50.1,
-        matchups: [{ enemyId: 1, advantage: 4.52, winRate: 55.3, expectedWinRate: 50.1, gamesPlayed: 1200 }],
-      };
-
-      await open('/?against=1&team=2');
-      useFakeTimers();
-      loadHeroes();
-      countersRequest([1], [2]).flush([]);
-      teamRequest([2], [1]).flush({ totalAdvantage: 0, heroes: [axeEmpty] });
-      render();
-      expect(text('[data-testid="team-total"]')).toBe('0.0 combined edge');
-
-      waitPoll();
-      countersRequest([1], [2]).flush([weaver]);
-      render();
-
-      teamRequest([2], [1]).flush({ totalAdvantage: 4.52, heroes: [axeScored] });
-      render();
-      expect(text('[data-testid="team-total"]')).toBe('+4.5 combined edge');
-
-      waitPoll();
-      http.expectNone(() => true);
+      http.expectNone(statusUrl);
     });
   });
 });

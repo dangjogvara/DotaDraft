@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { HeroScore, Hero, TeamMatchup } from './hero.models';
+import { ApiStatus, HeroScore, Hero, TeamMatchup } from './hero.models';
 
 @Injectable({ providedIn: 'root' })
 export class HeroApiService {
@@ -11,6 +11,12 @@ export class HeroApiService {
   private readonly baseUrl = `${environment.apiBaseUrl}/api/heroes`;
   private readonly draftCountersUrl = `${environment.apiBaseUrl}/api/counters`;
   private readonly teamMatchupUrl = `${environment.apiBaseUrl}/api/team-matchup`;
+  private readonly statusUrl = `${environment.apiBaseUrl}/api/status`;
+
+  /** Whether the counter data is ready. */
+  getStatus(): Observable<ApiStatus> {
+    return this.http.get<ApiStatus>(this.statusUrl);
+  }
 
   /** All heroes, sorted by name. */
   getHeroes(): Observable<Hero[]> {
