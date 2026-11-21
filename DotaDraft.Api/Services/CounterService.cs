@@ -6,20 +6,13 @@ using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Services;
 
-// Ranks counter picks from the stored matchups; see CounterRanking for the formula.
-// Each query checks its own hero IDs, so it can't run on IDs that weren't checked
+// Each query checks its own hero IDs, so it can't run on IDs that weren't checked. The formula is in CounterRanking
 public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 {
     private readonly int _priorGames = options.Value.PriorGames;
 
-    /// <summary>
-    /// The best counter picks against the enemies, never suggesting enemies or excluded heroes. Errors are keyed by
-    /// query parameter (against, exclude, role).
-    /// </summary>
-    /// <param name="role">
-    /// Only suggest heroes with this role, e.g. Support; null or blank for any. Matched case-insensitively against
-    /// the roles the heroes have.
-    /// </param>
+    /// <summary>The best counter picks, never enemies or excluded heroes. Errors are keyed by query parameter.</summary>
+    /// <param name="role">Only heroes with this role (case-insensitive); null or blank for any.</param>
     public async Task<CheckedResult<IReadOnlyList<HeroScoreDto>>> GetDraftCountersAsync(
         IReadOnlyList<int> enemyIds, IReadOnlyList<int> excludedIds, string? role, int limit, CancellationToken ct)
     {
@@ -49,10 +42,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         return CheckedResult<IReadOnlyList<HeroScoreDto>>.Valid(counters);
     }
 
-    /// <summary>
-    /// How each of your team's heroes does against the enemy lineup, in pick order. Errors are keyed by query
-    /// parameter (team, against).
-    /// </summary>
+    /// <summary>Your team's heroes scored against the enemy lineup, in pick order. Errors are keyed by query parameter.</summary>
     public async Task<CheckedResult<TeamMatchupDto>> GetTeamMatchupAsync(
         IReadOnlyList<int> teamIds, IReadOnlyList<int> enemyIds, CancellationToken ct)
     {
@@ -70,10 +60,8 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         return CheckedResult<TeamMatchupDto>.Valid(new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes));
     }
 
-    // Checks the enemy IDs together with one other list of hero IDs (excluded heroes, or your team), against the
-    // heroes loaded for the request:
-    // 1. No hero may be in both lists. Reported under the other list's name, and nothing else is checked.
-    // 2. Every ID must be a known hero. Each unknown ID is reported under the list it came from, in request order.
+    // A hero in both lists is reported alone, under the other list's name. Otherwise unknown IDs are reported
+    // under the list they came from
     private static Dictionary<string, string[]> CheckHeroes(
         IReadOnlyList<int> enemyIds, IReadOnlyList<int> otherIds, IReadOnlyDictionary<int, Hero> heroesById,
         string otherName, string inBothError)
@@ -92,8 +80,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         return errors;
     }
 
-    // The role as the heroes spell it (e.g. "support" -> "Support"), or null for no role filter. A role no hero has
-    // is reported under "role", listing the known ones
+    // The role as the heroes spell it ("support" -> "Support"), or null for no filter
     private static string? FindRole(string? role, IEnumerable<Hero> heroes, Dictionary<string, string[]> errors)
     {
         if (string.IsNullOrWhiteSpace(role))
@@ -114,8 +101,6 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
             errors[name] = [$"Unknown hero IDs: {string.Join(", ", unknown)}."];
     }
 
-    // Loads the heroes' matchups against the enemies, then scores in CounterRanking. The enemies' baseline win rates
-    // (stored on the heroes by the matchup seed) come from the heroes already loaded for the request
     private async Task<List<HeroScoreDto>> ScoreAsync(
         IReadOnlyList<Hero> heroes, IReadOnlyList<int> enemyIds, IReadOnlyDictionary<int, Hero> heroesById, CancellationToken ct)
     {

@@ -25,10 +25,8 @@ public static class DraftEndpoints
             .WithTags("Counters");
     }
 
-    // ASP.NET fills each parameter from the query string; a repeated key becomes an array (against=1&against=14).
-    // The attributes are checked by the framework's validation before the method runs; a missing required list
-    // arrives as an empty array and fails [Length]. The service query does the checks that need both lists or the
-    // database itself, and the handler maps its errors to a ValidationProblem.
+    // A missing list arrives as an empty array, so [Length] also rejects a missing `against`.
+    // Checks that need the database (unknown IDs, a hero on both lists, the role) are done by the service
     /// <summary>Best counter picks against an enemy lineup.</summary>
     /// <remarks>
     /// Ranked by each hero's advantage summed over the enemies, so heroes that counter several picks rank highest.
@@ -53,9 +51,7 @@ public static class DraftEndpoints
         [Range(1, MaxLimit)] int limit = 10,
         CancellationToken ct = default)
     {
-        int[] excluded = exclude ?? [];  // exclude is optional: leaving it out excludes no one
-
-        var result = await counters.GetDraftCountersAsync(against, excluded, role, limit, ct);
+        var result = await counters.GetDraftCountersAsync(against, exclude ?? [], role, limit, ct);
         return result.IsValid ? TypedResults.Ok(result.Value) : TypedResults.ValidationProblem(result.Errors);
     }
 

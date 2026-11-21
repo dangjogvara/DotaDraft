@@ -6,10 +6,7 @@ public class MatchupOptions
 {
     public const string SectionName = "Matchups";
 
-    /// <summary>
-    /// Match IDs per explorer query. Larger windows hit the explorer's ~15s statement timeout
-    /// (200,000 IDs took about 6s when measured).
-    /// </summary>
+    /// <summary>Match IDs per explorer query. Much larger windows hit its ~15s timeout (200,000 took about 6s).</summary>
     [Range(1, int.MaxValue)]
     public int WindowSize { get; set; } = 200_000;
 
@@ -17,9 +14,7 @@ public class MatchupOptions
     [Range(1, 1_000)]
     public int WindowCount { get; set; } = 15;
 
-    /// <summary>
-    /// Optional lower bound on a match's average rank tier (10-15 Herald ... 80 Immortal). Unset includes all ranks.
-    /// </summary>
+    /// <summary>Optional minimum average rank tier (10–15 Herald … 80 Immortal); unset includes all ranks.</summary>
     [Range(10, 80)]
     public int? MinAvgRankTier { get; set; }
 }

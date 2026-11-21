@@ -16,7 +16,6 @@ public static class HeroEndpoints
             .WithTags("Heroes");
     }
 
-    // Projects to HeroDto so the public contract doesn't follow the DB schema (e.g. the Matchups navigation)
     /// <summary>List all heroes.</summary>
     /// <remarks>Sorted by name. Empty until heroes are seeded.</remarks>
     internal static async Task<Ok<List<HeroDto>>> GetHeroes(AppDbContext db, CancellationToken ct)

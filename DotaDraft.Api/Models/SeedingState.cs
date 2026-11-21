@@ -1,7 +1,6 @@
 namespace DotaDraft.Api.Models;
 
-// A single row (Id 1) remembering when the matchups were last seeded successfully, so a restart can tell
-// whether the data is still fresh
+// A single row remembering when the matchups were last seeded, so a restart can tell whether the data is fresh
 public class SeedingState
 {
     public const int RowId = 1;

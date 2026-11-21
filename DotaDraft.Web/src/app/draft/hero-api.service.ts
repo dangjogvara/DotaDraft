@@ -17,11 +17,7 @@ export class HeroApiService {
     return this.http.get<Hero[]>(this.baseUrl);
   }
 
-  /**
-   * Counter-picks against a lineup of 1-5 enemies, ranked by summed advantage, never suggesting the
-   * up to 5 excluded heroes (your own team's picks), and with a role only heroes that have it. The
-   * API limits limit to 1-20.
-   */
+  /** Counter-picks against 1-5 enemies, leaving out up to 5 excluded heroes (your own team's picks). */
   getDraftCounters(
     enemyIds: number[],
     excludeIds: number[] = [],

@@ -5,10 +5,8 @@ using Microsoft.Extensions.Options;
 
 namespace DotaDraft.Api.Services;
 
-// Seeds heroes and then matchups in the background, every Seeding:IntervalHours counted from the last
-// successful seed, which is stored in the database. So a restart only seeds straight away when the data is
-// stale or missing. A failed run is logged and retried with exponential backoff starting at
-// Seeding:RetryDelayMinutes, capped at Seeding:IntervalHours
+// Seeds every Seeding:IntervalHours counted from the last successful seed, which is stored in the database, so a
+// restart only seeds straight away when the data is stale or missing. Failures retry with exponential backoff
 public class SeedingWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<SeedingOptions> options,
@@ -35,7 +33,7 @@ public class SeedingWorker(
         }
     }
 
-    // Seeds if a seed is due, and returns how long to wait before checking again
+    // Returns how long to wait before checking again
     private async Task<TimeSpan> RunIfDueAsync(CancellationToken stoppingToken)
     {
         try
@@ -66,7 +64,6 @@ public class SeedingWorker(
         }
     }
 
-    // Doubles Seeding:RetryDelayMinutes on each consecutive failure, capped at Interval
     private TimeSpan RetryDelay(int failureCount)
     {
         var delay = TimeSpan.FromMinutes(options.Value.RetryDelayMinutes);
@@ -80,8 +77,6 @@ public class SeedingWorker(
             ? $"{delay.TotalHours:0.#} {(delay.TotalHours == 1 ? "hour" : "hours")}"
             : $"{delay.TotalMinutes:0.#} {(delay.TotalMinutes == 1 ? "minute" : "minutes")}";
 
-    // Zero when a seed is due now: there are no matchups (e.g. a fresh database), no seed has been
-    // recorded, or the last one finished more than an interval ago
     private async Task<TimeSpan> TimeUntilDueAsync(CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
