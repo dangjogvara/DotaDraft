@@ -79,14 +79,16 @@ public class CounterServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDraftCounters_ReportsHeroesInBothLists_UnderExclude_WithoutCheckingTheRest()
+    public async Task GetDraftCounters_ReportsHeroesInBothLists_UnderExclude_AlongWithOtherErrors()
     {
-        // 99 is unknown, but a hero in both lists is reported on its own
-        var result = await CreateService().GetDraftCountersAsync([1, 2, 99], [2, 1], null, 5, CancellationToken.None);
+        GiveRoles();
 
-        var error = Assert.Single(result.Errors);
-        Assert.Equal("exclude", error.Key);
-        Assert.Equal(["Hero IDs can't be both enemies and excluded: 1, 2."], error.Value);
+        var result = await CreateService().GetDraftCountersAsync([1, 2, 99], [2, 1, 97], "Jungler", 5, CancellationToken.None);
+
+        Assert.Equal(["against", "exclude", "role"], result.Errors.Keys.Order());
+        Assert.Equal(["Unknown hero IDs: 99."], result.Errors["against"]);
+        Assert.Equal(["Hero IDs can't be both enemies and excluded: 1, 2.", "Unknown hero IDs: 97."], result.Errors["exclude"]);
+        Assert.Equal(["Unknown role: Jungler. Known roles: Carry, Disabler, Support."], result.Errors["role"]);
     }
 
     [Fact]
@@ -119,6 +121,20 @@ public class CounterServiceTests : IAsyncLifetime
         var counters = ValueOf(await CreateService(priorGames: 0).GetDraftCountersAsync([1], [], null, 5, CancellationToken.None));
 
         Assert.Equal([3, 2], counters.Select(c => c.Id));
+        Assert.Equal(counters[0].TotalAdvantage, counters[1].TotalAdvantage);
+    }
+
+    [Fact]
+    public async Task GetDraftCounters_BreaksFullTies_ByHeroId()
+    {
+        // An update moves hero 2's row in Postgres, so an unsorted query returns it after hero 3
+        _db.Heroes.Single(h => h.Id == 2).LocalizedName = "Hero 2, renamed";
+        await _db.SaveChangesAsync();
+        AddMatchups((2, 1, 6, 10), (3, 1, 6, 10));
+
+        var counters = ValueOf(await CreateService().GetDraftCountersAsync([1], [], null, 5, CancellationToken.None));
+
+        Assert.Equal([2, 3], counters.Select(c => c.Id));
         Assert.Equal(counters[0].TotalAdvantage, counters[1].TotalAdvantage);
     }
 
