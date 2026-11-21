@@ -1,4 +1,4 @@
-// Mirror DotaDraft.Api's Dtos/HeroDto.cs, HeroScoreDto.cs, EnemyMatchupDto.cs and TeamMatchupDto.cs
+// Mirror DotaDraft.Api's Dtos/HeroDto.cs, HeroScoreDto.cs, EnemyMatchupDto.cs, TeamMatchupDto.cs and StatusDto.cs
 
 export interface Hero {
   id: number;
@@ -36,4 +36,10 @@ export interface EnemyMatchup {
 export interface TeamMatchup {
   totalAdvantage: number;
   heroes: HeroScore[];
+}
+
+/** Whether the counter data is ready. */
+export interface ApiStatus {
+  /** When the matchups were last seeded, as an ISO date; null until the first seed finishes. */
+  matchupsSeededAt: string | null;
 }

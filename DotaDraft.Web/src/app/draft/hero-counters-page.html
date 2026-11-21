@@ -101,6 +101,12 @@
               @case ('loading') {
                 <p class="text-slate-400">Loading counters…</p>
               }
+              @case ('seeding') {
+                <p class="text-slate-400" data-testid="counters-seeding">
+                  The API is still loading matchup data from OpenDota, which takes about a minute and a half after it
+                  starts. The counters appear here by themselves when it's done.
+                </p>
+              }
               @case ('error') {
                 <p class="text-red-300">Could not load counters. Try changing the lineup.</p>
               }
@@ -111,8 +117,7 @@
                   </p>
                 } @else if (counterList().length === 0) {
                   <p class="text-slate-400" data-testid="counters-empty">
-                    No matchup data for these heroes yet. If the API just started, it may still be loading data from
-                    OpenDota. The counters appear here by themselves when it's done.
+                    No heroes have matchup data against this lineup yet.
                   </p>
                 } @else {
                   <app-counter-list

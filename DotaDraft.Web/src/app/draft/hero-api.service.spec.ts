@@ -33,6 +33,15 @@ describe('HeroApiService', () => {
     expect(await result).toEqual(heroes);
   });
 
+  it('gets the status', async () => {
+    const result = firstValueFrom(service.getStatus());
+    http
+      .expectOne({ method: 'GET', url: `${environment.apiBaseUrl}/api/status` })
+      .flush({ matchupsSeededAt: '2026-11-20T21:17:30+00:00' });
+
+    expect(await result).toEqual({ matchupsSeededAt: '2026-11-20T21:17:30+00:00' });
+  });
+
   it('gets draft counters with one repeated "against" key per enemy', () => {
     service.getDraftCounters([1, 14, 74]).subscribe();
 
