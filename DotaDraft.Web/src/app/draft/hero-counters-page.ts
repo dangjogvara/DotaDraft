@@ -135,7 +135,6 @@ export class HeroCountersPage {
 
   protected readonly alliesFull = computed(() => this.allies().length >= MAX_LINEUP);
 
-  /** Adds a hero from the grid to the team being picked for. */
   protected addHero(hero: Hero): void {
     this.addToTeam(this.addingTo(), hero);
   }
@@ -146,7 +145,6 @@ export class HeroCountersPage {
     if (hero) this.addToTeam('ally', hero);
   }
 
-  // Adds a hero to a team, unless either team already has it or that team is full
   private addToTeam(team: Team, hero: Hero): void {
     const lineup = team === 'enemy' ? this.enemies() : this.allies();
     if (this.enemyIds().has(hero.id) || this.allyIds().has(hero.id) || lineup.length >= MAX_LINEUP) return;

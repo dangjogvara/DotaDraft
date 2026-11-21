@@ -9,10 +9,7 @@ export interface Hero {
   imgUrl: string | null;
 }
 
-/**
- * Mirrors HeroScoreDto: a hero scored against a whole enemy lineup, either a counter suggestion or one of
- * your own team's picks. Advantages are percentage points.
- */
+/** A counter suggestion or one of your team's picks, scored against the enemy lineup. Advantages are percentage points. */
 export interface HeroScore {
   id: number;
   localizedName: string;
@@ -35,7 +32,7 @@ export interface EnemyMatchup {
   gamesPlayed: number;
 }
 
-/** Mirrors TeamMatchupDto: your team's heroes scored against the enemy lineup, in pick order. */
+/** Your team's heroes scored against the enemy lineup, in pick order. */
 export interface TeamMatchup {
   totalAdvantage: number;
   heroes: HeroScore[];

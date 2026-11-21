@@ -11,19 +11,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 
-// Numbers are only read as JSON numbers, not strings ("5"). The API takes no JSON bodies, so this only
-// stops the OpenAPI document from describing every number as "integer or string"
+// Stops the OpenAPI document describing every number as "integer or string"
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 
-// Every error response is RFC 9457 ProblemDetails: explicit Problem results, empty status codes
-// (e.g. unmatched routes) via UseStatusCodePages, and unhandled exceptions via UseExceptionHandler
+// Every error is ProblemDetails, including unmatched routes (UseStatusCodePages) and exceptions (UseExceptionHandler)
 builder.Services.AddProblemDetails();
 
-// Validates endpoint parameters with data annotations (e.g. [Range]) and returns a 400 ValidationProblem
 builder.Services.AddValidation();
 
-// The connection string lives in user-secrets (see .env.example), or in the ConnectionStrings__DefaultConnection
-// environment variable, so fail clearly if it's missing
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException(
@@ -34,15 +29,13 @@ builder.Services.AddDotaDraftOptions(builder.Configuration);
 
 builder.Services.AddOpenDotaClient();
 
-// The Angular client runs on another origin (its dev server, or wherever it's deployed).
-// Origins come from configuration; with none configured, no cross-origin requests are allowed.
+// The Angular dev server runs on another origin. With no origins configured, no cross-origin requests are allowed
 const string AngularClientCorsPolicy = "AngularClient";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options => options.AddPolicy(AngularClientCorsPolicy, policy => policy
     .WithOrigins(allowedOrigins)
     .WithMethods("GET")));
 
-// /health reports Unhealthy (503) when the database can't be reached
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
 
@@ -53,8 +46,7 @@ builder.Services.AddHostedService<SeedingWorker>();
 
 var app = builder.Build();
 
-// In Development the framework's developer exception page handles exceptions, adding their details;
-// elsewhere the handler returns a 500 ProblemDetails without them
+// In Development the developer exception page shows exception details; elsewhere a 500 ProblemDetails hides them
 if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler();
 

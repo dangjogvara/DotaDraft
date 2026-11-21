@@ -17,8 +17,6 @@ public class HeroIngestionService(
     private readonly OpenDotaOptions _options = options.Value;
     private readonly MatchupOptions _matchupOptions = matchupOptions.Value;
 
-    // Adds new heroes and updates changed ones. Returns the number of heroes written; throws
-    // OpenDotaException when OpenDota fails, and DbUpdateException when saving fails
     public async Task<int> SeedHeroesAsync(CancellationToken ct = default)
     {
         logger.LogInformation("Fetching heroes from OpenDota API...");
@@ -37,14 +35,12 @@ public class HeroIngestionService(
                 db.Heroes.Add(hero);
             }
 
-            // Overwrite existing heroes too, so renames and new art from a patch are picked up.
-            // EF only issues UPDATEs for properties whose value actually changed.
+            // Overwrite existing heroes too, so a patch's renames and new art are picked up
             hero.Name = dto.Name;
             hero.LocalizedName = dto.LocalizedName;
             hero.PrimaryAttr = dto.PrimaryAttr;
             hero.Roles = dto.Roles;
-            // Prefix relative path ("/apps/dota2/images/...png?") with Steam's CDN host. OpenDota ends paths
-            // with an empty query string; trimming only a trailing '?' keeps any real query intact
+            // OpenDota ends image paths with an empty query string ("...png?")
             hero.ImgUrl = string.IsNullOrWhiteSpace(dto.Img)
                 ? null
                 : $"{_options.SteamCdnBaseUrl.TrimEnd('/')}/{dto.Img.TrimStart('/').TrimEnd('?')}";
@@ -65,10 +61,8 @@ public class HeroIngestionService(
         return saved;
     }
 
-    // Sums hero-pair totals over consecutive match ID windows, newest first, then replaces all matchups
-    // in one save. Nothing is written unless at least half the windows succeeded, so a bad run can't
-    // swap good data for a tiny sample. Returns the number of rows written (added, changed or removed);
-    // throws OpenDotaException when too little could be fetched, and DbUpdateException when saving fails
+    // Nothing is written unless at least half the windows succeeded, so a bad run can't swap good data for a tiny
+    // sample. Returns the number of matchup rows written
     public async Task<int> SeedMatchupsAsync(CancellationToken ct = default)
     {
         var validHeroIds = await db.Heroes.Select(h => h.Id).ToHashSetAsync(ct);
@@ -91,8 +85,7 @@ public class HeroIngestionService(
         return saved;
     }
 
-    // Fetches each window of match IDs, walking back from the newest match, and adds up games and wins per
-    // hero pair. A failed window is logged and counted rather than fatal; the caller decides if enough worked
+    // A failed window is counted rather than fatal; the caller decides whether enough worked
     private async Task<(MatchupTotals Totals, int AttemptedWindows, int FailedWindows)> FetchTotalsAsync(
         long latestMatchId, HashSet<int> validHeroIds, CancellationToken ct)
     {
@@ -139,9 +132,7 @@ public class HeroIngestionService(
         return (totals, attemptedWindows, failedWindows);
     }
 
-    // Replaces the table's contents in one save: updates or adds every pair seen, and removes pairs that
-    // weren't, so no rows from an older seed linger. Every hero's baseline win rate is set from the same totals
-    // in that save, so baselines and matchups always agree. Returns the number of matchup rows written
+    // Replaces the whole table and every hero's baseline in one save, so baselines and matchups always agree
     private async Task<int> ReplaceMatchupsAsync(MatchupTotals totals, CancellationToken ct)
     {
         var totalsByHero = totals

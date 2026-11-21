@@ -5,8 +5,7 @@ namespace DotaDraft.Api;
 
 public static class OptionsServiceCollectionExtensions
 {
-    // Binds every settings section and validates it with its data annotations at startup, so bad
-    // configuration fails fast instead of on the first request or seed
+    // Validated at startup, so bad configuration fails fast instead of on the first request or seed
     public static IServiceCollection AddDotaDraftOptions(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddValidatedOptions<OpenDotaOptions>(configuration, OpenDotaOptions.SectionName);
