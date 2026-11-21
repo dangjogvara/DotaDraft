@@ -37,6 +37,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
             .Where(c => c.Matchups.Any(m => m.GamesPlayed > 0))
             .OrderByDescending(c => c.TotalAdvantage)
             .ThenByDescending(c => c.Matchups.Sum(e => e.GamesPlayed))
+            .ThenBy(c => c.Id)
             .Take(limit)
             .ToList();
         return CheckedResult<IReadOnlyList<HeroScoreDto>>.Valid(counters);
@@ -60,8 +61,8 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         return CheckedResult<TeamMatchupDto>.Valid(new TeamMatchupDto(heroes.Sum(h => h.TotalAdvantage), heroes));
     }
 
-    // A hero in both lists is reported alone, under the other list's name. Otherwise unknown IDs are reported
-    // under the list they came from
+    // Every problem is reported, like the framework's own parameter validation: a hero in both lists under the
+    // other list's name, and unknown IDs under the list they came from
     private static Dictionary<string, string[]> CheckHeroes(
         IReadOnlyList<int> enemyIds, IReadOnlyList<int> otherIds, IReadOnlyDictionary<int, Hero> heroesById,
         string otherName, string inBothError)
@@ -70,10 +71,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
 
         var inBoth = enemyIds.Intersect(otherIds).ToList();
         if (inBoth.Count > 0)
-        {
-            errors[otherName] = [$"{inBothError}: {string.Join(", ", inBoth)}."];
-            return errors;
-        }
+            AddError(errors, otherName, $"{inBothError}: {string.Join(", ", inBoth)}.");
 
         AddUnknown(errors, "against", enemyIds, heroesById);
         AddUnknown(errors, otherName, otherIds, heroesById);
@@ -89,7 +87,7 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         var knownRoles = heroes.SelectMany(h => h.Roles).Distinct().Order(StringComparer.Ordinal).ToList();
         var match = knownRoles.FirstOrDefault(r => string.Equals(r, role.Trim(), StringComparison.OrdinalIgnoreCase));
         if (match is null)
-            errors["role"] = [$"Unknown role: {role}. Known roles: {string.Join(", ", knownRoles)}."];
+            AddError(errors, "role", $"Unknown role: {role}. Known roles: {string.Join(", ", knownRoles)}.");
         return match;
     }
 
@@ -98,8 +96,11 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
     {
         var unknown = ids.Where(id => !heroesById.ContainsKey(id)).ToList();
         if (unknown.Count > 0)
-            errors[name] = [$"Unknown hero IDs: {string.Join(", ", unknown)}."];
+            AddError(errors, name, $"Unknown hero IDs: {string.Join(", ", unknown)}.");
     }
+
+    private static void AddError(Dictionary<string, string[]> errors, string name, string error) =>
+        errors[name] = errors.TryGetValue(name, out var existing) ? [.. existing, error] : [error];
 
     private async Task<List<HeroScoreDto>> ScoreAsync(
         IReadOnlyList<Hero> heroes, IReadOnlyList<int> enemyIds, IReadOnlyDictionary<int, Hero> heroesById, CancellationToken ct)
@@ -107,10 +108,10 @@ public class CounterService(AppDbContext db, IOptions<CounterOptions> options)
         var enemyBaselines = heroesById.Values
             .Where(h => enemyIds.Contains(h.Id))
             .ToDictionary(h => h.Id, h => h.BaselineWinRate);
-        var heroIds = heroes.Select(h => h.Id).ToList();
+        // At most 5 enemies × about 125 heroes; Score ignores the matchups of heroes it isn't scoring
         var matchups = await db.HeroMatchups
             .AsNoTracking()
-            .Where(m => enemyIds.Contains(m.AgainstHeroId) && heroIds.Contains(m.HeroId))
+            .Where(m => enemyIds.Contains(m.AgainstHeroId))
             .ToListAsync(ct);
 
         return CounterRanking.Score(heroes, enemyIds, enemyBaselines, matchups, _priorGames);
